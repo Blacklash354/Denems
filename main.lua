@@ -82,6 +82,7 @@ function love.load(args)
     Settings.load()
     for _, a in ipairs(args or {}) do
         if a == "--autotest" then autotest = require("tools.autotest") end
+        if a == "--drivetest" then autotest = require("tools.drivetest") end
     end
     if not autotest and (Settings.data.fullscreen or Settings.data.resolution ~= 1) then Settings.applyWindow() end
     Textures.init()

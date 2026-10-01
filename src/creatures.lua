@@ -131,28 +131,42 @@ local function buildBurrower()
     local m = {}
     local mb = MB.new(331)
     mb.texScale = 1
-    -- segmented body rising from the ground along +y
-    for i = 0, 4 do
-        local r = 0.55 - i * 0.06
-        mb:material(i % 2 == 0 and "flesh" or "fur"):color(0.7, 0.62, 0.62)
-        mb:sphere(0, i * 0.42, 0, r, 0.3, r, 7, 4)
-    end
-    -- maw with teeth
-    mb:material("flesh"):color(0.45, 0.15, 0.15)
-    mb:cylinder(0, 1.95, 0, 0.36, 2.15, 0.2, 7, false)
-    mb:material("plaster"):color(1, 1, 0.9)
-    for i = 0, 6 do
-        local a = i / 7 * 6.28
-        mb:push() mb:translate(math.cos(a) * 0.3, 2.1, math.sin(a) * 0.3)
-        mb:cylinder(0, 0, 0, 0.05, 0.22, 0, 4)
+    -- segmented body rearing out of the snow, curving forward like a striking worm
+    local segs = 6
+    for i = 0, segs - 1 do
+        local t = i / (segs - 1)
+        local r = 0.58 - t * 0.2
+        local x = t * t * 0.9
+        local y = t * 1.9
+        mb:material(i % 2 == 0 and "flesh" or "fur"):color(0.72, 0.62, 0.62)
+        mb:sphere(x, y, 0, r, 0.34, r * 0.92, 7, 4)
+        -- chitin ridge plates
+        mb:material("ice"):color(0.75, 0.82, 0.9)
+        mb:push() mb:translate(x - r * 0.7, y + 0.1, 0) mb:rotateZ(0.9)
+        mb:cylinder(0, 0, 0, 0.08, 0.3, 0, 4)
         mb:pop()
     end
+    -- forward facing maw ringed with teeth
+    mb:push()
+    mb:translate(0.95, 1.95, 0)
+    mb:rotateZ(-1.1)
+    mb:material("flesh"):color(0.45, 0.12, 0.12)
+    mb:cylinder(0, 0, 0, 0.38, 0.32, 0.22, 8, false)
+    mb:material("plaster"):color(1, 1, 0.9)
+    for i = 0, 7 do
+        local a = i / 8 * 6.28
+        mb:push() mb:translate(math.cos(a) * 0.3, 0.28, math.sin(a) * 0.3)
+        mb:rotateX(math.sin(a) * 0.5) mb:rotateZ(-math.cos(a) * 0.5)
+        mb:cylinder(0, 0, 0, 0.05, 0.24, 0, 4)
+        mb:pop()
+    end
+    mb:pop()
     m.body = mb:build()
     mb = MB.new(332)
     mb:material("snow"):color(0.95, 0.97, 1)
     mb:sphere(0, 0, 0, 1.1, 0.35, 0.9, 7, 3)
     m.mound = mb:build()
-    m.eyes = eyesModel(0.25, 1.9, 0, 0.18, 0.05)
+    m.eyes = eyesModel(0.9, 1.75, 0, 0.22, 0.06)
     m.legs = {}
     return m
 end
@@ -502,6 +516,7 @@ local function updateCreature(c, dt)
                 if tkind == "tank" then
                     local lx, ly, lz = G.tank.frame:toLocal(c.x, c.y, c.z)
                     local cx, cz = U.clamp(lx, -4.2, 4.0), U.clamp(lz, -2.3, 2.3)
+                    local gy
                     gx, gy, gz = G.tank.frame:toWorld(cx, 0, cz)
                 end
                 moveTowards(c, gx, gz, def.run, dt)

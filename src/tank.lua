@@ -315,7 +315,7 @@ function T.update(dt)
         local targetRpm = 750 + frac * 1900 + math.abs(throttle) * 450
         if T.gear == 0 then targetRpm = 750 + math.abs(throttle) * 300 end
         T.rpm = U.damp(T.rpm, targetRpm, 4, dt)
-        T.fuel = math.max(0, T.fuel - dt * (0.008 + (math.max(0, T.rpm - 700) / 2300) ^ 2 * 0.22))
+        T.fuel = math.max(0, T.fuel - dt * (0.008 + (math.max(0, T.rpm - 700) / 2300) ^ 2 * 0.15))
         -- exhaust
         T.exhaustAcc = T.exhaustAcc + dt * (2 + T.rpm / 500)
         while T.exhaustAcc > 1 do

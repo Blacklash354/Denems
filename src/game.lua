@@ -280,11 +280,14 @@ local function registerWorld()
                 enabled = function() return G.missions.stage >= 8 end,
                 use = function() Game.ending() end })
     end
-    for _, t in ipairs(G.enemies.tanks) do
-        I.add({ space = "exterior", frame = function() return t.frame end, pos = { 0, 1.8, 1.7 }, radius = 1.2, range = 3.2, hold = 1.5,
-                enabled = function() return not t.alive and not t.looted end,
+    for i in ipairs(G.enemies.tanks) do
+        -- look the tank up by index: enemy tank tables are recreated on new game / load
+        local function tank() return G.enemies.tanks[i] end
+        I.add({ space = "exterior", frame = function() return tank() and tank().frame end, pos = { 0, 1.8, 1.7 }, radius = 1.2, range = 3.2, hold = 1.5,
+                enabled = function() local t = tank() return t and not t.alive and not t.looted end,
                 prompt = "SEARCH WRECK",
                 use = function()
+                    local t = tank()
                     t.looted = true
                     local got = {}
                     for _, e in ipairs({ { "ap_shell", 3 }, { "mg_ammo", 120 }, { "repair_kit", 1 } }) do
@@ -724,8 +727,12 @@ function Game.keypressed(key)
         end
         if key == "e" then
             if not I.press() and Pl.mode == "ladder" then
-                -- step off the ladder
-                Pl.ladderT = Pl.ladderT < 0.5 and -0.01 or Pl.ladderT
+                local L = Pl.LADDERS.interior
+                if Pl.ladderName == "interior" and Pl.ladderT >= L.blockT - 0.05 then
+                    Game.toggleHatch()          -- reach up and work the hatch
+                elseif Pl.ladderT < 0.5 then
+                    Pl.ladderT = -0.01          -- step off at the bottom
+                end
             end
             return
         end

@@ -76,7 +76,8 @@ src/audio.lua          procedural sound synthesis, 3D audio, interior muffling, 
 src/environment.lua    time of day and lighting; src/weather.lua blizzards and snowfall
 src/survival.lua       health, stamina, body temperature, radiation
 src/missions.lua, radio.lua, map.lua, inventory.lua, save.lua (JSON), settings.lua, ui.lua, menu.lua
-tools/autotest.lua     automated playtest (love . --autotest) that drives the game and saves screenshots
+tools/autotest.lua     automated playtest (love . --autotest): drives the game, checks gameplay flows, saves screenshots
+tools/drivetest.lua    autopilot (love . --drivetest): drives the tank from the start to the Radio Tower
 ```
 
 Saves and settings are JSON files in the LÖVE save directory (`steel_hearth`).

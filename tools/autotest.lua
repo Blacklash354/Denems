@@ -322,7 +322,7 @@ function A.start(game)
     S(0.5, function() end)
     S(0.2, function()
         local c = W.signalConsole
-        Pl.placeWalking("world", c.x, cr and cr.y or W.controlRoom.y + 0.05, c.z + 1.6, -math.pi / 2)
+        Pl.placeWalking("world", c.x, W.controlRoom.y + 0.05, c.z + 1.6, -math.pi / 2)
         lookAt(c.x, c.y, c.z)
     end)
     S(0.4, function() log("console prompt:", I.currentText) I.press() end)
@@ -332,6 +332,37 @@ function A.start(game)
     S(0.2, function() teleport(0, 200, 0, 0) G.weather.intensity = 1 G.environment.time = 2 Pl.warmth = 100 A.w0 = Pl.warmth end)
     S(10, function() end)
     S(0.1, function() log("warmth after 10s in a night blizzard", Pl.warmth, "from", A.w0) G.weather.intensity = 0.3 G.environment.time = 15 end)
+    -- visual review: creature lineup, enemy close-up, track marks
+    S(0.2, function()
+        G.environment.time = 12.5
+        G.weather.intensity = 0.2 G.weather.target = 0.2
+        teleport(-20, 300, 0, -0.05)
+        local C = G.creatures
+        for i, k in ipairs({ "hound", "crawler", "burrower", "mutant" }) do
+            local c = { kind = k, def = C.KINDS[k], x = -20 + 9 + (k == "mutant" and 3 or 0), y = 0, z = 300 - 6 + (i - 1) * 4, yaw = math.pi * 0.6,
+                        hp = 999, state = "idle", timer = 99, homeX = 0, homeZ = 300, homeR = 1, group = C.groups[1], phase = i, speed = 0,
+                        attackT = 0, jaw = 0.5, hurtT = 0, alertT = 0, deathT = 0, lastSeenT = 99, pain = 0, emerge = 1, frozen = true }
+            c.y = W.height(c.x, c.z)
+            table.insert(C.list, c)
+        end
+        lookAt(-11, W.height(-11, 300) + 0.8, 300)
+    end)
+    S(0.6, function() for _, c in ipairs(G.creatures.list) do if c.frozen then c.state = "idle" c.timer = 99 c.speed = 0 end end end, "44_creature_lineup")
+    S(0.1, function() for _, c in ipairs(G.creatures.list) do if c.frozen then c.remove = true end end end)
+    S(0.2, function()
+        local e = G.enemies.tanks[2]
+        teleport(e.x + 9, e.z + 7, 0, 0)
+        lookAt(e.x, e.y + 1.3, e.z)
+        G.game.godMode = true
+    end)
+    S(0.6, nil, "45_enemy_closeup")
+    S(0.2, function()
+        G.game.godMode = false
+        local x, y, z = T.frame:toWorld(-14, 0, 2)
+        teleport(x, z, 0, -0.35)
+        lookAt(T.x, T.y, T.z)
+    end)
+    S(0.6, nil, "46_track_marks")
     S(0.2, function() Game.state = "pause" end, "41_pause")
     S(0.2, function() Game.state = "settings" end, "42_settings")
     S(0.2, function() Game.state = "message" Game.message = { title = "TEST", body = "Body text" } end)

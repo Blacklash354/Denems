@@ -200,7 +200,7 @@ function Props.pole(ctx, x, y, z)
     ctx:mat("wood", 0.55, 0.5, 0.45)
     ctx.mb:cylinder(x, y - 0.5, z, 0.14, y + 8, 0.11, 5)
     ctx:beam(x - 0.9, y + 7.4, z, x + 0.9, y + 7.4, z, 0.1)
-    ctx:collider(x - 0.15, y, z - 0.15, x + 0.15, y + 8, z + 0.15)
+    ctx:collider(x - 0.15, y, z - 0.15, x + 0.15, y + 8, z + 0.15, { noVehicle = true })
 end
 
 function Props.sign(ctx, x, z, rot, tex)
