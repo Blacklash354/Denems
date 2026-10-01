@@ -436,7 +436,7 @@ function Game.newGame()
     G.inventory.reset()
     G.weapons.reset()
     G.missions.reset()
-    G.environment.time = 16.4
+    G.environment.time = 15.5
     G.weather.load({ intensity = 0.3, target = 0.3, phaseT = 120 })
     G.creatures.load(nil)
     G.enemies.reset()

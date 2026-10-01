@@ -87,13 +87,13 @@ local function traceAll(ox, oy, oz, dx, dy, dz, maxT, owner)
         local tt = W.rayTerrain(ox, oy, oz, dx, dy, dz, math.min(bestT, 450))
         if tt and tt < bestT then bestT, kind, obj = tt, "terrain", nil nx, ny, nz = W.normal(ox + dx * tt, oz + dz * tt) end
     end
-    -- the player's own tank
+    -- the player's own tank (its own guns fire from outside the hull and skip it)
     if owner ~= "player" then
         local T = G.tank
         local t2, a2, b2, c2, box2 = P.raycast({ T.extSet, T.turretExtSet, T.gunExtSet }, ox, oy, oz, dx, dy, dz, bestT)
         if t2 and t2 < bestT then bestT, kind, obj, nx, ny, nz = t2, "playertank", box2, a2, b2, c2 end
         -- the player on foot
-        if G.player.frameName == "world" and G.player.mode ~= "dead" then
+        if owner ~= "foot" and G.player.frameName == "world" and G.player.mode ~= "dead" then
             local px, py, pz = G.player.x, G.player.y + 0.9, G.player.z
             local t3 = P.raySphere(ox, oy, oz, dx, dy, dz, px, py, pz, 0.55)
             if t3 and t3 < bestT then bestT, kind, obj = t3, "player", nil end
@@ -113,7 +113,8 @@ end
 Wp.traceAll = traceAll
 
 function Wp.hitscan(ox, oy, oz, dx, dy, dz, range, damage, kind, tracer)
-    local t, what, obj, nx, ny, nz = traceAll(ox, oy, oz, dx, dy, dz, range, kind == "enemy" and "enemy" or "player")
+    local owner = kind == "enemy" and "enemy" or (kind == "foot" and "foot" or "player")
+    local t, what, obj, nx, ny, nz = traceAll(ox, oy, oz, dx, dy, dz, range, owner)
     local hx, hy, hz = ox + dx * (t or range), oy + dy * (t or range), oz + dz * (t or range)
     if tracer then G.effects.tracer(ox + dx * 2, oy + dy * 2, oz + dz * 2, dx, dy, dz, 420, math.min(0.35, (t or range) / 420)) end
     if not t then return end
@@ -280,7 +281,7 @@ function Wp.fire()
     local cam = G.camera
     local spread = def.spread * (Wp.aiming and 0.3 or 1) * (G.player.sprinting and 4 or 1)
     local dx, dy, dz = U.norm3(cam.fx + (math.random() - 0.5) * spread, cam.fy + (math.random() - 0.5) * spread, cam.fz + (math.random() - 0.5) * spread)
-    Wp.hitscan(cam.x, cam.y, cam.z, dx, dy, dz, 300, def.damage, "player", false)
+    Wp.hitscan(cam.x, cam.y, cam.z, dx, dy, dz, 300, def.damage, "foot", false)
     local rx, ry, rz = R.camRight[1], R.camRight[2], R.camRight[3]
     local mx, my, mz = cam.x + cam.fx * 0.8 + rx * 0.12 - cam.ux * 0.08, cam.y + cam.fy * 0.8 + ry * 0.12 - cam.uy * 0.08, cam.z + cam.fz * 0.8 + rz * 0.12 - cam.uz * 0.08
     G.effects.muzzleFlash(mx, my, mz, dx, dy, dz, Wp.current == "rifle" and 0.6 or 0.35)

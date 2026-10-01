@@ -17,7 +17,10 @@ function Env.serialize() return { time = Env.time } end
 function Env.load(s) if s and s.time then Env.time = s.time end end
 
 function Env.update(dt)
-    Env.time = (Env.time + dt * Env.daySpeed) % 24
+    -- days are long, nights pass about three times faster
+    local h0 = Env.time
+    local night = h0 < 6 or h0 > 19
+    Env.time = (Env.time + dt * (night and 1 / 40 or 1 / 120)) % 24
     local h = Env.time
     -- sun path: rises ~6, sets ~18.5, low in the sky (nuclear winter)
     local a = (h - 6.2) / 12.3 * math.pi

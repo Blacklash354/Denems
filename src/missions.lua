@@ -4,7 +4,7 @@ local M = {}
 local G
 
 M.MAIN = {
-    { id = "supplies", text = "Check the tank's supplies" },
+    { id = "supplies", text = "Check the supplies (rear shelves)" },
     { id = "engine", text = "Start the engine (driver's seat)" },
     { id = "tower", text = "Reach the Radio Tower" },
     { id = "transmitter", text = "Use the transmitter at the tower" },
