@@ -81,3 +81,18 @@ tools/drivetest.lua    autopilot (love . --drivetest): drives the tank from the 
 ```
 
 Saves and settings are JSON files in the LÖVE save directory (`steel_hearth`).
+
+## Testing
+
+Two self-driving test modes ship with the project:
+
+```
+love . --autotest     # scripted playtest: interior walk, ladder + hatch, driving, cannon/optic, MG,
+                      # all locations, creatures, enemy armour, repair, refuel, doors, bunker,
+                      # keycard, ending, UI screens, save/load; screenshots -> <save dir>/autotest/
+love . --drivetest    # autopilot drives the tank from the start to the Radio Tower
+```
+
+They also run headless, e.g. `SDL_AUDIODRIVER=dummy xvfb-run -a love . --autotest`.
+Set `STEEL_TIMING=1` to print world-generation timings (about 2 s even on a software renderer).
+A typical frame is roughly 100–170 draw calls and 25k–60k triangles.
