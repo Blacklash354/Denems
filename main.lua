@@ -12,6 +12,10 @@ local loader          -- coroutine building the world
 local loadStatus = { step = "starting", frac = 0 }
 local autotest
 
+local function stamp(label)
+    if os.getenv("STEEL_TIMING") then print(string.format("[timing] %-12s %.2f s", label, love.timer.getTime() - G.loadStart)) end
+end
+
 local function buildAll()
     G.settings = Settings
     G.renderer = R
@@ -20,11 +24,15 @@ local function buildAll()
     coroutine.yield("textures", 0)
     G.world.initChunks()
     G.world.computeHeights()
+    stamp("heights")
     G.worldGen.build()
+    stamp("locations")
     G.world.buildTerrain()
+    stamp("terrain")
     G.world.buildSilhouettes()
     coroutine.yield("finalizing", 0.9)
     G.world.finalize()
+    stamp("meshes")
     G.camera = require("src.camera")
     G.effects = require("src.effects")
     G.inventory = require("src.inventory")
@@ -64,6 +72,7 @@ local function buildAll()
     coroutine.yield("audio", 0.96)
     G.audio = require("src.audio")
     G.audio.init(G, Settings.data)
+    stamp("audio")
     G.map.init(G)
     G.game.init(G)
 end
@@ -88,6 +97,7 @@ function love.load(args)
     Textures.init()
     R.init(Settings.data.quality)
     G.app = "loading"
+    G.loadStart = love.timer.getTime()
     loader = coroutine.create(buildAll)
     love.graphics.setFont(love.graphics.newFont(14))
 end
@@ -100,6 +110,7 @@ function love.update(dt)
         if not ok then error(step) end
         if step then loadStatus.step, loadStatus.frac = step, frac or 0 end
         if coroutine.status(loader) == "dead" then
+            if os.getenv("STEEL_TIMING") then print(string.format("[timing] world ready after %.2f s", love.timer.getTime() - G.loadStart)) end
             if autotest then autotest.start(G) else G.menu.open() end
         end
         return

@@ -205,7 +205,7 @@ function TI.buildTurret()
     mb:box(0.95, 0.15, -0.5, 1.35, 0.36, -0.32)
     mb:material("steel"):color(0.25, 0.25, 0.25)
     mb:cylinderX(0.82, 0.95, 0.27, -0.41, 0.05, 0.06, 6)
-    mb:material("cloth"):color(0.2, 0.18, 0.16)
+    mb:material("cloth"):color(0.55, 0.5, 0.45)
     mb:cylinderX(0.8, 0.84, 0.27, -0.41, 0.065, 0.065, 6)
     -- traverse and elevation handwheels
     mb:material("steel"):color(0.4, 0.4, 0.38)

@@ -99,8 +99,8 @@ function Gn.camera(cam)
     else
         local tf = T.turretWorld
         -- eye beside the sight, looking at the breech and the turret front
-        local px, py, pz = tf:toWorld(0.35, 0.32, -0.72)
-        local fx, fy, fz = U.norm3(tf:dirToWorld(0.9, -0.12, 0.42))
+        local px, py, pz = tf:toWorld(0.3, 0.3, -0.72)
+        local fx, fy, fz = U.norm3(tf:dirToWorld(0.88, 0.05, 0.47))
         G.camera.set(px, py, pz, fx, fy, fz, tf.ux, tf.uy, tf.uz)
         G.camera.fov = G.camera.baseFov
     end

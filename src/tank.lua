@@ -55,7 +55,7 @@ function T.init(game)
     for _, b in ipairs(tur) do b.walk = true b.tank = true b.turret = true end
     T.turretExtSet = { frame = T.turretWorld, boxes = tur, tank = true }
     local gun = { { 0.3, -0.16, -0.16, 6.05, 0.16, 0.16, noPlayer = true, tank = true, gun = true },
-                  { -0.05, -0.34, -0.62, 0.35, 0.34, 0.62, tank = true, gun = true } }
+                  { 0.08, -0.34, -0.62, 0.42, 0.34, 0.62, tank = true, gun = true } }
     T.gunExtSet = { frame = T.gunWorld, boxes = gun, tank = true }
     T.intSet = { boxes = TI.hullColliders() }
     T.turretIntSet = { frame = T.turretLocal, boxes = TI.turretColliders() }
