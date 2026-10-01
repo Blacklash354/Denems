@@ -97,7 +97,7 @@ function Menu.drawSettings(back)
     lg.setColor(0, 0, 0, 0.6)
     lg.rectangle("fill", 0, 0, UI.VW, UI.VH)
     local x, y, w = 140, 50, 360
-    UI.panel(x - 10, y - 14, w + 20, 228)
+    UI.panel(x - 10, y - 14, w + 20, 250)
     UI.text("SETTINGS", x, y - 10, UI.COL.amber, UI.fontM)
     y = y + 14
     local old = { s.master, s.sfx, s.music }
@@ -123,8 +123,13 @@ function Menu.drawSettings(back)
         s.quality = s.quality % #R.qualities + 1
         R.setQuality(s.quality)
     end
-    UI.text("Quality changes the internal render resolution and draw distance.", x, by + 70, UI.COL.dim, UI.fontS)
-    if UI.button("BACK", x + w / 2 - 50, by + 92, 100, 18) then
+    UI.text("RETRO WOBBLE (PSX)", x, by + 70, UI.COL.text)
+    if UI.button(s.wobble and "ON" or "OFF", x + 150, by + 66, 90, 16) then
+        s.wobble = not s.wobble
+        R.wobble = s.wobble
+    end
+    UI.text("Quality changes the internal render resolution and draw distance.", x, by + 92, UI.COL.dim, UI.fontS)
+    if UI.button("BACK", x + w / 2 - 50, by + 108, 100, 18) then
         Settings.save()
         back()
     end

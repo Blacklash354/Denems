@@ -31,9 +31,11 @@ function M.reset()
         { id = "checkpoint", text = "Investigate the checkpoint", done = false, shown = false },
         { id = "enemy", text = "Destroy the enemy tank", done = false, shown = false },
         { id = "cabin", text = "Find the hunter's cabin", done = false, shown = false },
+        { id = "camp", text = "Visit the loners' camp", done = false, shown = true },
+        { id = "bandits", text = "Clear the bandits", done = false, shown = false, n = 0, need = 9 },
     }
     M.discovered = {}
-    M.revealed = { tower = true }
+    M.revealed = { tower = true, camp = true }
     M.flags = {}
     M.flash = 8
     M.finished = false
@@ -141,12 +143,15 @@ function M.event(name, data)
         M.finished = true
     elseif name == "discovered" then
         if data == "tower" then complete("tower") end
-        if data == "checkpoint" then progressOpt("checkpoint") end
+        if data == "checkpoint" then progressOpt("checkpoint") opt("bandits").shown = true end
         if data == "plant" then
             if M.stage == 7 then complete("plant") end
         end
         if data == "forest" then end
     elseif name == "cabin_found" then progressOpt("cabin")
+    elseif name == "talked" then progressOpt("camp")
+    elseif name == "human_killed" then
+        if data == "bandit" then progressOpt("bandits") end
     end
 end
 

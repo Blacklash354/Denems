@@ -38,6 +38,7 @@ function UI.notify(text)
     if #UI.notes > 5 then table.remove(UI.notes, 1) end
 end
 function UI.warning(text) UI.warn = { text = text, t = 4 } end
+function UI.say(who, text) UI.speech = { who = who, text = text, t = 5 } end
 function UI.areaTitle(text) UI.area = { text = text, t = 5 } end
 function UI.objective(head, text) UI.objMsg = { head = head, text = text, t = 5 } end
 
@@ -47,7 +48,7 @@ function UI.update(dt)
         n.t = n.t - dt
         if n.t <= 0 then table.remove(UI.notes, i) end
     end
-    for _, k in ipairs({ "warn", "area", "objMsg" }) do
+    for _, k in ipairs({ "warn", "area", "objMsg", "speech" }) do
         if UI[k] then UI[k].t = UI[k].t - dt if UI[k].t <= 0 then UI[k] = nil end end
     end
 end
@@ -122,39 +123,94 @@ end
 ---------------------------------------------------------------------------
 -- HUD pieces
 ---------------------------------------------------------------------------
-local DIRS = { [0] = "E", [45] = "SE", [90] = "S", [135] = "SW", [180] = "W", [225] = "NW", [270] = "N", [315] = "NE" }
+local CARD = { [0] = "E", [90] = "S", [180] = "W", [270] = "N" }
+local INTER = { [45] = "SE", [135] = "SW", [225] = "NW", [315] = "NE" }
 
+-- Skyrim-style compass ribbon: cardinal letters, ticks and markers for places, the tank,
+-- the objective and (inside the tank) radar contacts.
 local function compass(cx, y)
     local cam = G.camera
     local yaw = math.deg(math.atan2(cam.fz, cam.fx)) % 360
-    local w = 220
-    lg.setScissor(0, 0, 0, 0)
+    local w, h = 250, 16
+    local half = 95 -- degrees visible each side
+    local x0 = cx - w / 2
+    -- frame
+    lg.setColor(0, 0, 0, 0.45)
+    lg.rectangle("fill", x0, y, w, h)
+    for k = 1, 6 do
+        lg.setColor(0, 0, 0, 0.07 * k)
+        lg.rectangle("fill", x0 - 14 + k * 2, y, 2, h)
+        lg.rectangle("fill", x0 + w + 12 - k * 2, y, 2, h)
+    end
+    lg.setColor(0.85, 0.8, 0.65, 0.55)
+    lg.rectangle("fill", x0, y, w, 1)
+    lg.rectangle("fill", x0, y + h - 1, w, 1)
+    lg.polygon("fill", x0 - 6, y + h / 2, x0, y + 2, x0, y + h - 2)
+    lg.polygon("fill", x0 + w + 6, y + h / 2, x0 + w, y + 2, x0 + w, y + h - 2)
     lg.setScissor()
-    for a = -120, 120, 5 do
-        local deg = (yaw + a) % 360
-        local x = cx + a / 120 * (w / 2)
-        local fade = 1 - math.abs(a) / 120
-        local d = math.floor(deg / 5 + 0.5) * 5 % 360
-        lg.setColor(1, 1, 1, 0.5 * fade)
-        if d % 45 == 0 then
-            lg.rectangle("fill", x, y, 1, 5)
-            text(DIRS[d], x - 10, y + 5, { 1, 1, 1, 0.85 * fade }, UI.fontS, "center", 20)
-        elseif d % 15 == 0 then
-            lg.rectangle("fill", x, y, 1, 3)
+    local sw, sh = lg.getDimensions()
+    local function rel(deg) return (deg - yaw + 540) % 360 - 180 end
+    local function xAt(r) return cx + r / half * (w / 2) end
+    for d = 0, 355, 5 do
+        local r = rel(d)
+        if math.abs(r) < half then
+            local x = xAt(r)
+            local fade = 1 - (math.abs(r) / half) ^ 2
+            if CARD[d] then
+                local col = d == 270 and { 0.95, 0.4, 0.3, fade } or { 0.95, 0.92, 0.85, fade }
+                text(CARD[d], x - 10, y + 2, col, UI.font, "center", 20)
+            elseif INTER[d] then
+                text(INTER[d], x - 10, y + 4, { 0.8, 0.78, 0.72, 0.8 * fade }, UI.fontS, "center", 20)
+            elseif d % 15 == 0 then
+                lg.setColor(0.9, 0.88, 0.8, 0.5 * fade)
+                lg.rectangle("fill", x, y + h - 5, 1, 3)
+            end
         end
     end
-    lg.setColor(1, 1, 1, 0.8)
-    lg.rectangle("fill", cx, y - 3, 1, 3)
-    -- objective direction marker
+    -- markers
+    local px, pz = cam.x, cam.z
+    local function marker(wx, wz, draw)
+        local r = rel(math.deg(math.atan2(wz - pz, wx - px)) % 360)
+        if math.abs(r) < half then draw(xAt(r), math.abs(r)) end
+    end
+    local M = G.missions
+    for _, l in ipairs(G.world.locations) do
+        local d = U.dist2(px, pz, l.x, l.z)
+        if (M.discovered[l.id] or M.revealed[l.id]) and d < 700 and d > l.r * 0.5 then
+            marker(l.x, l.z, function(x, ar)
+                lg.setColor(0.85, 0.85, 0.8, 0.85)
+                lg.rectangle("line", x - 2.5, y + h + 2.5, 5, 5)
+                if ar < 6 then text(l.name, x - 50, y + h + 10, { 0.85, 0.85, 0.8, 0.9 }, UI.fontS, "center", 100) end
+            end)
+        end
+    end
+    local pl = G.player
+    if pl.frameName ~= "tank" then
+        local T = G.tank
+        marker(T.x, T.z, function(x)
+            lg.setColor(0.55, 0.85, 0.5, 0.95)
+            lg.rectangle("fill", x - 3, y + 6, 6, 4)
+            lg.rectangle("fill", x, y + 7, 5, 1)
+        end)
+    elseif G.radar then
+        for _, b in ipairs(G.radar.blips) do
+            if b.hostile then
+                local T = G.tank
+                local wx, wy, wz = T.frame:toWorld(b.x * G.radar.RANGE, 0, b.z * G.radar.RANGE)
+                marker(wx, wz, function(x)
+                    lg.setColor(1, 0.3, 0.2, b.life)
+                    lg.circle("fill", x, y + h - 4, 1.8, 6)
+                end)
+            end
+        end
+    end
     local tx, tz = UI.objectiveTarget()
     if tx then
-        local a = math.deg(math.atan2(tz - cam.z, tx - cam.x)) % 360
-        local rel = (a - yaw + 540) % 360 - 180
-        if math.abs(rel) < 120 then
-            local x = cx + rel / 120 * (w / 2)
-            lg.setColor(COL.amber[1], COL.amber[2], COL.amber[3], 0.9)
-            lg.polygon("fill", x - 3, y - 6, x + 3, y - 6, x, y - 2)
-        end
+        marker(tx, tz, function(x)
+            lg.setColor(COL.amber[1], COL.amber[2], COL.amber[3], 0.95)
+            lg.polygon("fill", x, y + 2, x + 4, y + 7, x, y + 12, x - 4, y + 7)
+            text(string.format("%dM", U.dist2(px, pz, tx, tz)), x - 20, y + h + 1, { COL.amber[1], COL.amber[2], COL.amber[3], 0.9 }, UI.fontS, "center", 40)
+        end)
     end
 end
 
@@ -177,6 +233,7 @@ local function statusPanel()
     local lines = {}
     if S.coldLevel > 0.05 or pl.warmth < 60 then lines[#lines + 1] = { "COLD", COL.cold } end
     if S.radLevel > 0.05 or pl.radiation > 5 then lines[#lines + 1] = { "RADIATION", COL.rad } end
+    if G.ambience and (G.ambience.nearAnomaly or 99) < 18 then lines[#lines + 1] = { "ANOMALY NEARBY", { 0.6, 0.75, 1.0 } } end
     local yy = y - #lines * 11
     for _, l in ipairs(lines) do
         lg.setColor(l[2][1], l[2][2], l[2][3], 0.85 + 0.15 * math.sin(love.timer.getTime() * 5))
@@ -270,6 +327,14 @@ local function messages()
         text(UI.area.text, 0, 120, { 0.92, 0.9, 0.85, a }, UI.fontL, "center", UI.VW)
         lg.setColor(0.9, 0.9, 0.85, a * 0.6)
         lg.rectangle("fill", UI.VW / 2 - 80, 148, 160, 1)
+    end
+    if UI.speech then
+        local a = math.min(1, UI.speech.t)
+        local s = UI.speech.who .. ": " .. UI.speech.text
+        local w = math.min(420, UI.fontS:getWidth(s) + 16)
+        lg.setColor(0, 0, 0, 0.45 * a)
+        lg.rectangle("fill", UI.VW / 2 - w / 2, UI.VH - 62, w, 22)
+        text(s, UI.VW / 2 - w / 2 + 8, UI.VH - 58, { 0.92, 0.9, 0.82, a }, UI.fontS, "center", w - 16)
     end
     if UI.objMsg then
         local t = UI.objMsg.t
@@ -441,23 +506,43 @@ function UI.drawHUD()
     lg.setColor(1, 1, 1, 1)
     if pl.mode == "dead" then return end
     local st = pl.mode == "seat" and pl.station
+    if not (st and (st.name == "mg" or (st.name == "gunner" and G.stations.gunner.optic))) then compass(UI.VW / 2, 6) end
     if st and st.name == "driver" then driverUI()
     elseif st and st.name == "gunner" then
         if G.stations.gunner.optic then opticReticle() gunnerUI(true) else gunnerUI(false) end
     elseif st and st.name == "mg" then mgUI()
     else
-        compass(UI.VW / 2, 6)
         statusPanel()
         weaponPanel()
-        -- crosshair
-        if not (G.weapons.aiming and G.weapons.current == "rifle") then
-            lg.setColor(1, 1, 1, 0.6)
-            lg.rectangle("fill", UI.VW / 2 - 0.5, UI.VH / 2 - 0.5, 1.5, 1.5)
+        -- dynamic crosshair (fades out while aiming down the sights) and hit marker
+        local Wp = G.weapons
+        local cx, cy = UI.VW / 2, UI.VH / 2
+        local a = (1 - Wp.aimT) * (1 - Wp.holster)
+        if a > 0.05 then
+            local def = Wp.DEFS[Wp.current]
+            local gap = 3 + def.hipSpread * 120 * (1 + (pl.bobAmt or 0) * 1.5) + Wp.burst * 1.5
+            lg.setColor(1, 1, 1, 0.65 * a)
+            lg.rectangle("fill", cx - gap - 4, cy - 0.5, 4, 1)
+            lg.rectangle("fill", cx + gap, cy - 0.5, 4, 1)
+            lg.rectangle("fill", cx - 0.5, cy + gap, 1, 4)
+            lg.rectangle("fill", cx - 0.5, cy - gap - 4, 1, 4)
+            lg.rectangle("fill", cx - 0.5, cy - 0.5, 1, 1)
+        end
+        if Wp.hitT > 0 then
+            lg.setColor(1, 0.85, 0.7, Wp.hitT)
+            lg.line(cx - 6, cy - 6, cx - 3, cy - 3) lg.line(cx + 6, cy - 6, cx + 3, cy - 3)
+            lg.line(cx - 6, cy + 6, cx - 3, cy + 3) lg.line(cx + 6, cy + 6, cx + 3, cy + 3)
         end
         prompt()
         if pl.mode == "ladder" then
             text("[W/S] CLIMB", 0, UI.VH - 9, COL.dim, UI.fontS, "center", UI.VW)
         end
+    end
+    if pl.frameName == "tank" and G.radar and not G.tank.destroyed then
+        local optic = st and ((st.name == "gunner" and G.stations.gunner.optic) or st.name == "mg")
+        if optic then G.radar.drawHUD(UI, 12, UI.VH - 110, 70)
+        elseif st and st.name == "driver" then G.radar.drawHUD(UI, 172, UI.VH - 84, 64)
+        elseif not st then G.radar.drawHUD(UI, UI.VW - 82, UI.VH - 100, 70) end
     end
     objectivesPanel(love.keyboard.isDown("j"))
     radioPanel()
@@ -513,7 +598,7 @@ function UI.drawInventory()
     local sy = y + h - 64
     text(string.format("HEALTH %d   WARMTH %d   RADIATION %d   LIGHT %d%%", pl.health, pl.warmth, pl.radiation, pl.battery), x + 10, sy, COL.dim, UI.fontS)
     local Wp = G.weapons
-    text(string.format("WEAPONS: [1] %s (%d)   [2] %s (%d)", Wp.DEFS.rifle.name, Wp.mag.rifle, Wp.DEFS.pistol.name, Wp.mag.pistol), x + 10, sy + 12, COL.dim, UI.fontS)
+    text(string.format("[1] %s (%d)  [2] %s (%d)  [3] %s (%d)", Wp.DEFS.rifle.name, Wp.mag.rifle, Wp.DEFS.smg.name, Wp.mag.smg, Wp.DEFS.pistol.name, Wp.mag.pistol), x + 10, sy + 12, COL.dim, UI.fontS)
     text("[TAB] CLOSE   [M] MAP   [J] OBJECTIVES", x + 10, y + h - 14, COL.dim, UI.fontS)
 end
 

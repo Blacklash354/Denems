@@ -86,6 +86,59 @@ local function fireBarrel(ctx, lx, lz)
     W.fires[#W.fires + 1] = { x = x, y = y, z = z, r = 5 }
 end
 
+local function npc(x, z, faction, role, name, key, yaw)
+    W.npcs[#W.npcs + 1] = { x = x, z = z, faction = faction, role = role, name = name, key = key, yaw = yaw or 0 }
+end
+G.npc = npc
+
+-- camp fire with stones, logs to sit on and warmth; returns world centre
+local function campfire(cx, cz, logs)
+    local c = W.ctx(cx, cz, 0)
+    c:mat("rubble", 0.55, 0.55, 0.55)
+    for i = 0, 7 do
+        local a = i / 8 * 6.283
+        c.mb:push() c.mb:translate(math.cos(a) * 0.55, 0, math.sin(a) * 0.55)
+        c.mb:sphere(0, 0.05, 0, 0.16, 0.12, 0.14, 5, 3)
+        c.mb:pop()
+    end
+    c:mat("wood", 0.35, 0.28, 0.22)
+    c:beam(-0.35, 0.08, -0.2, 0.35, 0.18, 0.2, 0.1)
+    c:beam(-0.3, 0.08, 0.25, 0.3, 0.18, -0.25, 0.1)
+    c:mat("ground", 0.3, 0.25, 0.2)
+    c.mb:cylinder(0, 0.01, 0, 0.45, 0.03, 0.45, 8)
+    for _, l in ipairs(logs or {}) do
+        local a = l
+        local lx, lz = math.cos(a) * 2.3, math.sin(a) * 2.3
+        c:mat("bark", 0.8, 0.75, 0.7)
+        c.mb:push() c.mb:translate(lx, 0.18, lz) c.mb:rotateY(a + math.pi / 2)
+        c.mb:cylinderX(-0.7, 0.7, 0, 0, 0.18, 0.18, 6)
+        c.mb:pop()
+    end
+    local y = W.height(cx, cz)
+    W.emitters[#W.emitters + 1] = { x = cx, y = y + 0.15, z = cz, kind = "fire", rate = 1, acc = 0 }
+    W.staticLights[#W.staticLights + 1] = { x = cx, y = y + 1.2, z = cz, r = 1.0, g = 0.55, b = 0.22, radius = 12, intensity = 1.7, flicker = true }
+    W.fires[#W.fires + 1] = { x = cx, y = y, z = cz, r = 6 }
+    return cx, y, cz
+end
+G.campfire = campfire
+
+local function tent(cx, cz, yaw, w, l, h, mat, tint)
+    local c = W.ctx(cx, cz, yaw)
+    c:mat(mat or "cloth", tint and tint[1] or 0.55, tint and tint[2] or 0.55, tint and tint[3] or 0.42)
+    w, l, h = w or 2.2, l or 2.8, h or 1.6
+    c.mb:hexa({ { -l / 2, 0, -w / 2 }, { l / 2, 0, -w / 2 }, { l / 2, 0, w / 2 }, { -l / 2, 0, w / 2 },
+                { -l / 2, h, -0.04 }, { l / 2, h, -0.04 }, { l / 2, h, 0.04 }, { -l / 2, h, 0.04 } })
+    c:mat("window", 0.25, 0.22, 0.2)
+    c.mb:tri(l / 2 + 0.01, 0, -w * 0.3, 0, 0, l / 2 + 0.01, h * 0.75, 0, 0.5, 1, l / 2 + 0.01, 0, w * 0.3, 1, 0)
+    c:mat("snow", 0.95, 0.97, 1)
+    c.mb:hexa({ { -l / 2, h * 0.55, -w * 0.22 }, { l / 2, h * 0.55, -w * 0.22 }, { l / 2, h * 0.55, w * 0.22 }, { -l / 2, h * 0.55, w * 0.22 },
+                { -l / 2, h + 0.03, -0.03 }, { l / 2, h + 0.03, -0.03 }, { l / 2, h + 0.03, 0.03 }, { -l / 2, h + 0.03, 0.03 } })
+    c:collider(-l / 2, 0, -w / 2, l / 2, h, w / 2)
+    local a, b, cc, d, e, f = c:worldBox(-l / 2, 0, -w / 2, l / 2, h, w / 2)
+    W.shelters[#W.shelters + 1] = { a, b, cc, d, e, f }
+end
+G.tent = tent
+
 local function spawn(x, z, kind, count, loc, opts)
     W.spawns[#W.spawns + 1] = { x = x, z = z, kind = kind, count = count or 1, loc = loc, y = opts and opts.y,
                                 underground = opts and opts.underground, radius = opts and opts.radius or 25 }
@@ -211,6 +264,40 @@ end
 ---------------------------------------------------------------------------
 -- locations
 ---------------------------------------------------------------------------
+local function buildCamp()
+    local L = W.camp
+    local fx, fy, fz = campfire(L.x, L.z, { 0.3, 1.9, 3.5, 5.0 })
+    W.guitars[#W.guitars + 1] = { x = fx, y = fy + 1, z = fz }
+    tent(L.x - 7, L.z + 5, 0.4)
+    tent(L.x + 6, L.z + 7, -0.5, 2.4, 3.2, 1.8, "cloth", { 0.45, 0.5, 0.38 })
+    tent(L.x - 1, L.z - 9, 1.6)
+    -- trader's stall
+    local st = W.ctx(L.x + 8, L.z - 4, -0.6)
+    Props.crate(st, 0, 0, 0, 0.9)
+    Props.crate(st, 1.0, 0, 0.1, 0.8)
+    Props.crate(st, 0.4, 0.9, 0.0, 0.6)
+    st:mat("cloth", 0.4, 0.42, 0.32)
+    st:beam(-0.8, 0, -1.2, -0.8, 2.3, -1.2, 0.08) st:beam(1.8, 0, -1.2, 1.8, 2.3, -1.2, 0.08)
+    st:beam(-0.8, 0, 1.0, -0.8, 2.3, 1.0, 0.08) st:beam(1.8, 0, 1.0, 1.8, 2.3, 1.0, 0.08)
+    st.mb:hexa({ { -1.0, 2.3, -1.4 }, { 2.0, 2.3, -1.4 }, { 2.0, 2.3, 1.2 }, { -1.0, 2.3, 1.2 },
+                 { -1.0, 2.45, -1.4 }, { 2.0, 2.45, -1.4 }, { 2.0, 2.45, 1.2 }, { -1.0, 2.45, 1.2 } })
+    G.light(st, 0.5, 1.9, 0, 1.0, 0.75, 0.4, 6, 0.9, true)
+    Props.barrel(W.ctx(L.x - 4, L.z - 6, 0), 0, 0, 0, true)
+    Props.fence(W.ctx(L.x, L.z + 14, 0), -10, 0, 10, 0, 1.1)
+    Props.car(W.ctx(L.x - 14, L.z - 2, 1.2), 0, 0, 0)
+    pickup(W.ctx(L.x - 3, L.z + 8, 0), 0, 0, 0, "water", 2, "foodbox")
+    -- people
+    local function sitAt(a, name, key)
+        local x, z = L.x + math.cos(a) * 2.3, L.z + math.sin(a) * 2.3
+        npc(x, z, "loner", "sit", name, key, a + math.pi)
+    end
+    sitAt(0.3, "KOLYA", "kolya")
+    sitAt(1.9, "MISHA", "misha")
+    sitAt(3.5, "LONER", nil)
+    npc(L.x + 7.2, L.z - 3.0, "loner", "trader", "OLD PETRO", "petro", math.pi * 0.9)
+    npc(L.x + 13, L.z + 1, "loner", "guard", "SERGEI 'WOLF'", "wolf", 0)
+end
+
 local function buildVillage()
     local L = W.village
     local houseX = { -285, -262, -238, -214, -150, -126, -102 }
@@ -252,9 +339,6 @@ local function buildVillage()
     pickup(W.ctx(-205, 312, 0), 0, 0, 0, "fuel", 1, "jerrycan")
     pickup(W.ctx(-120, 294, 0), 0, 0, 0, "food", 2, "foodbox")
     pickup(W.ctx(-212, 260, 0), 3, 0, -10, "rifle_ammo", 10, "ammobox")
-    spawn(-210, 330, "hound", 2, "village")
-    spawn(-150, 270, "hound", 1, "village")
-    spawn(-196, 262, "burrower", 1, "village")
 end
 
 local function buildIndustrial()
@@ -380,10 +464,13 @@ local function buildCheckpoint()
     Props.truck(W.ctx(cx - 18, cz + 22, -0.2), 0, 0, 0, false)
     container(W.ctx(cx - 18, cz + 22, -0.2), -1, 1.2, 0, "military", "SUPPLY TRUCK")
     fireBarrel(c, 9, 4)
+    tent(cx + 16, cz + 8, 1.3, 2.4, 3.2, 1.7, "cloth", { 0.3, 0.32, 0.28 })
+    npc(cx + 10.5, cz + 4, "bandit", "sit", "BANDIT", nil, math.pi)
+    npc(cx + 3, cz - 3, "bandit", "guard", "BANDIT", nil, -math.pi / 2)
+    npc(cx - 8, cz + 4, "bandit", "patrol", "BANDIT", nil, 0)
     pickup(c, -11, 0, -3, "mg_ammo", 150, "mgbox")
     pickup(c, 10, 0, -6, "repair_kit", 1, "repairkit")
     pickup(c, -10, 0, 3, "fuel", 1, "jerrycan")
-    spawn(cx + 30, cz + 10, "crawler", 2, "checkpoint")
 end
 
 local function buildForest()
@@ -397,6 +484,7 @@ local function buildForest()
     door(cab, -0.55, 0.25, -2.5, 0, 1.1, 2.1)
     local fp = W.ctx(331, 225, 0)
     fireBarrel(fp, 0, -6)
+    npc(333.2, 219, "loner", "sit", "YEGOR THE HUNTER", "yegor", math.pi)
     -- collapsed bridge pieces
     local br = W.bridgeBroken
     local bc = W.ctx(br.x, br.z, -0.45, { y = W.baseHeight(br.x - 24, br.z) })
@@ -494,10 +582,12 @@ local function buildBase()
     Props.truck(W.ctx(cx + 20, cz + 46, 0.2), 0, 0, 0, true)
     Props.truck(W.ctx(cx + 26, cz + 52, 0.15), 0, 0, 0, false)
     fireBarrel(W.ctx(cx + 5, cz + 30, 0), 0, 0)
+    npc(cx + 6.5, cz + 30, "bandit", "sit", "BANDIT", nil, math.pi)
+    npc(cx + 3.5, cz + 31, "bandit", "sit", "BANDIT", nil, 0)
+    npc(cx + 15, cz - 10, "bandit", "patrol", "BANDIT", nil, 0)
+    npc(cx - 20, cz + 25, "bandit", "guard", "BANDIT", nil, 1.5)
+    tent(cx + 8, cz + 36, 0.2, 2.4, 3.2, 1.7, "cloth", { 0.3, 0.32, 0.28 })
     Props.sandbags(W.ctx(cx, cz, 0), 18, 30, 24, 30, 1.1)
-    spawn(cx - 30, cz - 10, "hound", 2, "base")
-    spawn(cx + 40, cz + 18, "crawler", 2, "base")
-    spawn(cx + 10, cz + 50, "hound", 1, "base")
 end
 
 local function buildTower()
@@ -533,8 +623,8 @@ local function buildTower()
     Props.fence(fe, 22, -22, 22, 22, 2.2, "metal")
     Props.fence(fe, -22, 22, -22, -22, 2.2, "metal")
     Props.truck(W.ctx(L.x - 18, L.z + 30, 2.2), 0, 0, 0, true)
-    spawn(L.x + 10, L.z - 30, "hound", 2, "tower")
-    spawn(L.x - 30, L.z + 10, "crawler", 1, "tower")
+    npc(L.x + 6, L.z + 18, "bandit", "patrol", "BANDIT", nil, 0)
+    npc(L.x + 20, L.z + 8, "bandit", "guard", "BANDIT", nil, -1.2)
 end
 
 local BUNKER_MAP = [[
@@ -772,6 +862,59 @@ local function buildPlant()
     spawn(180, -500, "hound", 2, "plant")
 end
 
+local function grassField(count)
+    for i = 1, count do
+        local x, z = rng:range(-600, 600), rng:range(-600, 600)
+        if W.roadDistance(x, z) > 6 and math.abs(x - W.riverX(z)) > 14 then
+            local list = W.colliders:query(x - 1, z - 1, x + 1, z + 1, {})
+            if #list == 0 then
+                local y = W.height(x, z)
+                local ctx = W.ctx(x, z, 0)
+                ctx.mb:reset()
+                ctx:mat("grass", rng:range(0.8, 1.1), rng:range(0.8, 1.0), rng:range(0.75, 0.95))
+                local w, h = rng:range(0.35, 0.6), rng:range(0.3, 0.65)
+                local a = rng:range(0, 3.14)
+                for k = 0, 1 do
+                    local c, sn = math.cos(a + k * 1.57) * w, math.sin(a + k * 1.57) * w
+                    ctx.mb:quadUV(x - c, y - 0.05, z - sn, 0, 1, x + c, y - 0.05, z + sn, 1, 1, x + c, y + h, z + sn, 1, 0, x - c, y + h, z - sn, 0, 0)
+                end
+            end
+        end
+        if i % 1000 == 0 and coroutine.isyieldable() then coroutine.yield("grass", i / count) end
+    end
+end
+
+local function anomaly(x, z, kind)
+    if W.roadDistance(x, z) < 8 then x = x + 12 end
+    local y = W.height(x, z)
+    W.anomalies[#W.anomalies + 1] = { x = x, y = y, z = z, kind = kind, r = kind == "vortex" and 4.5 or 3.5, cool = 0 }
+    -- scorched, crackling ground marks the spot
+    local c = W.ctx(x, z, 0)
+    c:mat(kind == "vortex" and "rubble" or "ground", kind == "vortex" and 0.5 or 0.3, kind == "vortex" and 0.48 or 0.3, kind == "vortex" and 0.46 or 0.34)
+    for i = 0, 6 do
+        local a = i / 7 * 6.28 + rng:range(-0.3, 0.3)
+        local r = rng:range(1.5, 3.5)
+        c.mb:push() c.mb:translate(math.cos(a) * r, 0, math.sin(a) * r) c.mb:rotateY(a)
+        c.mb:box(-0.5, -0.05, -0.2, 0.5, 0.06, 0.2)
+        c.mb:pop()
+    end
+    if kind == "vortex" then
+        c:mat("rust", 0.5, 0.45, 0.4)
+        for i = 0, 3 do c:beam(rng:range(-3, 3), 0, rng:range(-3, 3), rng:range(-3, 3), rng:range(0.2, 0.8), rng:range(-3, 3), 0.08) end
+    end
+end
+
+local function buildAnomalies()
+    anomaly(-255, -88, "electro")
+    anomaly(95, -458, "electro")
+    anomaly(140, 40, "electro")
+    anomaly(272, 248, "electro")
+    anomaly(-330, 32 + 14, "vortex")
+    anomaly(205, -472, "vortex")
+    anomaly(-62, 236, "vortex")
+    anomaly(-180, -130, "electro")
+end
+
 local function buildWilderness()
     -- telephone poles along main road and village road
     roadPoles(W.roads[1], 32, 9)
@@ -814,20 +957,16 @@ local function buildWilderness()
     -- crater with radiation
     W.radZones[#W.radZones + 1] = { x = 140, z = 40, r = 18, strength = 1.0 }
     -- roaming hounds
-    spawn(100, 250, "hound", 2, "wild")
-    spawn(-60, 150, "hound", 1, "wild")
-    spawn(150, -150, "hound", 2, "wild")
-    spawn(-120, -200, "crawler", 1, "wild")
-    spawn(180, 330, "burrower", 1, "wild")
 end
 
 function G.build()
     rng = U.rng(W.SEED)
     nextId = 0
     local steps = {
-        { "village", buildVillage }, { "industrial", buildIndustrial }, { "checkpoint", buildCheckpoint },
+        { "village", buildVillage }, { "camp", buildCamp }, { "industrial", buildIndustrial }, { "checkpoint", buildCheckpoint },
         { "base", buildBase }, { "tower", buildTower }, { "bunker", buildBunker }, { "plant", buildPlant },
-        { "forest", buildForest }, { "wilderness", buildWilderness },
+        { "forest", buildForest }, { "wilderness", buildWilderness }, { "anomalies", buildAnomalies },
+        { "grass", function() grassField(9000) end },
     }
     for i, s in ipairs(steps) do
         s[2]()

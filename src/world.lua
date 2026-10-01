@@ -19,6 +19,7 @@ local floor, sqrt, max, min, abs = math.floor, math.sqrt, math.max, math.min, ma
 -- layout data
 ---------------------------------------------------------------------------
 W.locations = {
+    { id = "camp", name = "LONER CAMP", area = "LONERS' CAMP", x = -120, z = 392, r = 26, icon = "camp" },
     { id = "village", name = "SOVIET TOWN", area = "FROZEN VILLAGE", x = -195, z = 300, r = 95, icon = "town" },
     { id = "industrial", name = "INDUSTRIAL ZONE", area = "ABANDONED INDUSTRIAL AREA", x = -285, z = -15, r = 115, icon = "factory" },
     { id = "forest", name = "FOREST", area = "FROZEN FOREST", x = 320, z = 180, r = 120, icon = "forest", noFlatten = true },
@@ -237,6 +238,7 @@ function W.initChunks()
     W.radZones, W.shelters, W.spawns, W.signals, W.fires = {}, {}, {}, {}, {}
     W.interactables = {}
     W.interiorAreas = {}
+    W.npcs, W.guitars, W.anomalies = {}, {}, {}
 end
 
 function W.chunkAt(x, z)

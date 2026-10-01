@@ -160,6 +160,8 @@ local function build()
         S.mg = gen(0.16, function(t) return (lp(noise()) * exp(-t * 45) * 1.6 + sin(TAU * 90 * t) * exp(-t * 30) * 0.6) end)
         local lp2 = lowpass(2500)
         S.rifle = gen(0.9, function(t) return lp2(noise()) * (exp(-t * 30) * 1.7 + exp(-t * 4) * 0.25) + sin(TAU * 70 * t) * exp(-t * 20) * 0.7 end)
+        local lp4 = lowpass(4200)
+        S.smg = gen(0.22, function(t) return lp4(noise()) * exp(-t * 38) * 1.3 + sin(TAU * 140 * t) * exp(-t * 35) * 0.5 end)
         local lp3 = lowpass(3000)
         S.pistol = gen(0.5, function(t) return lp3(noise()) * (exp(-t * 40) * 1.4 + exp(-t * 6) * 0.15) end)
     end
@@ -288,6 +290,59 @@ local function build()
         return s * env(t, 0.05, 1.4) * 0.45 + noise() * exp(-t * 20) * 0.5
     end)
     S.enemy_alert = gen(1.0, ring({ 900, 1350 }, 0.3, 0.4))
+    do
+        local hp = highpass(1200)
+        S.zap = gen(0.9, function(t)
+            local crack = (random() < 0.4 and noise() or 0) * exp(-t * 6)
+            return hp(crack * 1.5 + noise() * exp(-t * 30)) + sin(TAU * 60 * t) * exp(-t * 5) * 0.4
+        end)
+        S.detector = gen(0.07, function(t) return sin(TAU * 2600 * t) * exp(-t * 40) * 0.5 end)
+        local lp = lowpass(2200)
+        S.crow = gen(1.2, function(t)
+            local k = (t * 2.5) % 1
+            local f = 700 + 300 * sin(t * 20)
+            return lp(((t * f) % 1 - 0.5) * 1.5 + noise() * 0.3) * (k < 0.35 and sin(k / 0.35 * pi) or 0) * 0.7
+        end)
+    end
+    -- campfire guitar: Karplus-Strong plucked strings playing a slow minor progression
+    do
+        local chords = { { 110.0, 164.8, 220.0, 261.6, 329.6 }, { 146.8, 220.0, 293.7, 349.2 },
+                         { 82.4, 164.8, 207.7, 246.9, 329.6 }, { 110.0, 164.8, 220.0, 261.6, 329.6 } }
+        local dur = 16
+        local n = floor(dur * SR)
+        local buf = {}
+        for i = 0, n - 1 do buf[i] = 0 end
+        local function pluck(start, f, amp)
+            local period = floor(SR / f)
+            local line = {}
+            for i = 0, period - 1 do line[i] = (random() * 2 - 1) * amp end
+            local idx = 0
+            local len = math.min(n - start, floor(SR * 2.5))
+            for i = 0, len - 1 do
+                local a = line[idx]
+                local b = line[(idx + 1) % period]
+                local v = (a + b) * 0.5 * 0.996
+                line[idx] = v
+                idx = (idx + 1) % period
+                buf[start + i] = buf[start + i] + a
+            end
+        end
+        local beat = dur / 16
+        for bar = 0, 3 do
+            local ch = chords[bar + 1]
+            for k = 0, 3 do
+                local t0 = (bar * 4 + k) * beat
+                local note = ch[(k % #ch) + 1]
+                pluck(floor(t0 * SR), note, 0.5)
+                if k == 0 then pluck(floor(t0 * SR), ch[1] / 2, 0.4) end
+                if k == 2 then pluck(floor((t0 + beat * 0.5) * SR), ch[#ch], 0.25) end
+            end
+        end
+        local sd = love.sound.newSoundData(n, SR, 16, 1)
+        for i = 0, n - 1 do sd:setSample(i, U.clamp(buf[i] * 0.6, -1, 1)) end
+        S.guitar = sd
+    end
+    S.radar_ping = gen(0.6, function(t) return sin(TAU * 1250 * t) * exp(-t * 7) * 0.35 + sin(TAU * 1250 * (t - 0.15)) * (t > 0.15 and exp(-(t - 0.15) * 7) or 0) * 0.25 end)
     S.notify = gen(0.25, function(t) return sin(TAU * 880 * t) * exp(-t * 18) * 0.3 end)
     -- radio voice syllables
     do
@@ -319,7 +374,7 @@ end
 ---------------------------------------------------------------------------
 -- runtime
 ---------------------------------------------------------------------------
-local LOOPS = { "wind", "blizzard", "engine", "tracks", "turret", "static", "breath", "music" }
+local LOOPS = { "wind", "blizzard", "engine", "tracks", "turret", "static", "breath", "music", "guitar" }
 
 function A.init(game, settings)
     G = game
@@ -468,7 +523,7 @@ function A.update(dt, inGame)
         setLoop("wind", 0.35 * sfx, 1, false)
         setLoop("blizzard", 0.12 * sfx, 1, false)
         setLoop("music", 0.5 * mus, 1, false)
-        for _, n in ipairs({ "engine", "tracks", "turret", "static", "breath" }) do setLoop(n, 0) end
+        for _, n in ipairs({ "engine", "tracks", "turret", "static", "breath", "guitar" }) do setLoop(n, 0) end
         return
     end
     local cam = G.camera
@@ -496,7 +551,11 @@ function A.update(dt, inGame)
     setLoop("static", (T.radioOn and (G.radio and G.radio.staticLevel or 0.4) or 0) * radioD * sfx, 1, false)
     local pl = G.player
     setLoop("breath", (pl.stamina < 35 and (35 - pl.stamina) / 35 * 0.5 or 0) * sfx + (pl.warmth < 25 and 0.15 or 0), 1, false)
-    local musicVol = (G.game and G.game.musicDuck or 1) * 0.35 * mus
+    -- campfire guitar fades with distance to the nearest camp
+    local gd = 1e9
+    for _, gpos in ipairs(G.world.guitars or {}) do gd = math.min(gd, U.dist3(cam.x, cam.y, cam.z, gpos.x, gpos.y, gpos.z)) end
+    setLoop("guitar", U.clamp(1 - gd / 45, 0, 1) ^ 1.5 * 0.7 * mus * (inside and 0.3 or 1), 1, inside)
+    local musicVol = (G.game and G.game.musicDuck or 1) * 0.35 * mus * U.clamp(gd / 45, 0, 1)
     setLoop("music", musicVol, 1, false)
     -- geiger counter
     A.geigerT = (A.geigerT or 0) - dt

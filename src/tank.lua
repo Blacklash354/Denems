@@ -546,6 +546,11 @@ function T.addLights(list)
             list[#list + 1] = { x, y, z, d * 0.9 + 4, 1.0, 0.92, 0.75, 1.4 }
         end
     end
+    if G.radar and not T.destroyed then
+        local l = G.radar.light
+        local x, y, z = T.frame:toWorld(l[1], l[2], l[3])
+        list[#list + 1] = { x, y, z, 1.2, 0.3, 1.0, 0.4, 0.5 }
+    end
     if T.radioOn then
         local x, y, z = T.frame:toWorld(2.4, 1.8, 1.25)
         list[#list + 1] = { x, y, z, 0.9, 1.0, 0.7, 0.3, 0.6 }
@@ -611,6 +616,10 @@ function T.draw(cam)
             R.drawModel(m.turretBulb, turM, { emissive = 1 })
         end
         if T.radioOn then R.drawModel(m.radioDial, tankM, { emissive = 1 }) end
+        if G.radar then
+            R.drawModel(G.radar.console, tankM, ip)
+            R.drawModel(G.radar.screen, tankM, { emissive = T.destroyed and 0 or 1, tint = T.destroyed and { 0, 0, 0, 1 } or nil })
+        end
     end
 end
 

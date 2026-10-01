@@ -31,6 +31,7 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
     vec3 c = mix(horizonColor, zenithColor, smoothstep(0.0, 0.6, h));
     float s = max(dot(d, sunDirSky), 0.0);
     c += sunGlow * (pow(s, 64.0) * 1.6 + pow(s, 6.0) * 0.35) * smoothstep(-0.1, 0.05, d.y);
+    c += sunGlow * smoothstep(0.9994, 0.9997, s) * 1.4 * smoothstep(-0.05, 0.02, d.y);
     vec2 cp = d.xz / max(d.y + 0.15, 0.05);
     float cl = noise(cp * 1.2 + vec2(time * 0.01, 0.0)) * 0.6 + noise(cp * 3.1 - vec2(0.0, time * 0.02)) * 0.4;
     c = mix(c, c * 0.7, smoothstep(0.45, 0.8, cl) * smoothstep(0.0, 0.3, d.y));

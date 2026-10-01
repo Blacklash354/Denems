@@ -431,6 +431,8 @@ end
 
 function Pl.die(kind)
     if Pl.mode == "seat" and Pl.station then Pl.station.exit() Pl.station = nil end
+    Pl.deadEye = Pl.height - 0.12
+    if Pl.frameName == "tank" then Pl.y = math.max(Pl.y, 0.62) end
     Pl.mode = "dead"
     Pl.deadT = 0
     Pl.deathCause = kind
@@ -446,10 +448,12 @@ function Pl.updateCamera(cam)
         Pl.station.camera(cam)
         return
     end
+    if Pl.mode == "dead" then G.camera.fov = G.camera.baseFov
+    else G.camera.fov = G.weapons.fov(G.camera.baseFov) end
     local bobY = math.abs(math.sin(Pl.bob * math.pi)) * 0.05 * Pl.bobAmt
     local bobX = math.sin(Pl.bob * math.pi) * 0.03 * Pl.bobAmt
     local eye = Pl.height - 0.12 - Pl.kneel * 0.75 + bobY - Pl.landKick
-    if Pl.mode == "dead" then eye = math.max(0.25, eye - Pl.deadT * 1.6) end
+    if Pl.mode == "dead" then eye = math.max(0.35, (Pl.deadEye or eye) - Pl.deadT * 1.6) end
     local cy, sy = math.cos(Pl.yaw), math.sin(Pl.yaw)
     local pitch = Pl.pitch
     local roll = 0
@@ -479,7 +483,8 @@ function Pl.mousemoved(dx, dy, sens)
         Pl.station.mousemoved(dx, dy, sens)
         return
     end
-    local zoom = (G.weapons and G.weapons.aiming) and 0.6 or 1
+    local zoom = 1 - (G.weapons and G.weapons.aimT or 0) * 0.45
+    if G.weapons then G.weapons.look(dx, dy) end
     Pl.yaw = Pl.yaw + dx * sens * zoom
     Pl.pitch = U.clamp(Pl.pitch - dy * sens * zoom, -1.5, 1.5)
 end

@@ -1,6 +1,7 @@
 -- Automated playtest: drives the game with simulated input and captures screenshots.
 -- Run: love . --autotest   (screenshots land in the LÖVE save directory under autotest/)
 local A = { keys = {}, mouse = {} }
+local U = require("src.utils")
 local G
 local steps, idx, stepT = {}, 1, 0
 local shotPending
@@ -386,6 +387,77 @@ function A.start(game)
         lookAt(T.x, T.y, T.z)
     end)
     S(0.6, nil, "46_track_marks")
+    -- v2 features
+    S(0.2, function()
+        G.game.godMode = true
+        G.environment.time = 16.5 G.weather.intensity = 0.25 G.weather.target = 0.25
+        local c = W.camp
+        teleport(c.x + 10, c.z + 8, 0, -0.05)
+        lookAt(c.x, W.height(c.x, c.z) + 0.8, c.z)
+    end)
+    S(2.0, nil, "50_loner_camp")
+    S(0.2, function()
+        local c = W.camp
+        teleport(c.x + 9.2, c.z - 3.5, 0, 0)
+        lookAt(c.x + 7.2, W.height(c.x, c.z) + 1.5, c.z - 3.0)
+    end)
+    S(0.4, function() log("trader prompt:", I.currentText) I.press() log("state", Game.state) end, "51_trade")
+    S(0.2, function() Game.state = "play" end)
+    S(0.2, function() G.weapons.switch("rifle") teleport(10, 140, -math.pi / 2, 0.02) A.mouse[2] = true end)
+    S(1.5, nil, "52_rifle_ads")
+    S(0.2, function() A.mouse[2] = false G.weapons.switch("smg") end)
+    S(0.8, nil, "53_smg_hip")
+    S(0.2, function() A.mouse[2] = true end)
+    S(0.8, nil, "54_smg_ads")
+    S(0.2, function() A.mouse[2] = false G.weapons.switch("pistol") end)
+    S(0.8, nil, "55_pistol")
+    S(0.1, function() G.weapons.switch("rifle") end)
+    S(0.2, function()
+        local b
+        for _, h in ipairs(G.humans.list) do if h.faction == "bandit" then b = h break end end
+        teleport(b.x + 25, b.z + 12, 0, 0)
+        lookAt(b.x, b.y + 1.2, b.z)
+    end)
+    S(2.5, function() end, "56_bandits")
+    S(0.1, function()
+        local n = 0
+        for _, h in ipairs(G.humans.list) do if h.state == "combat" then n = n + 1 end end
+        log("bandits in combat:", n, "player hp", Pl.health)
+    end)
+    S(0.2, function()
+        G.game.godMode = false
+        Pl.health = 100
+        local b
+        for _, h in ipairs(G.humans.list) do if h.faction == "bandit" and h.state ~= "dead" then b = h break end end
+        teleport(b.x + 30, b.z + 10, 0, 0)
+        lookAt(b.x, b.y + 1.2, b.z)
+        A.hpBefore = Pl.health
+    end)
+    S(6.0, function() end)
+    S(0.1, function()
+        local st = {}
+        for _, h in ipairs(G.humans.list) do
+            if h.faction == "bandit" and U.dist2(h.x, h.z, Pl.x, Pl.z) < 80 then st[#st + 1] = h.state .. (h.sees and "+" or "-") .. math.floor(U.dist2(h.x, h.z, Pl.x, Pl.z)) end
+        end
+        log("bandit states", table.concat(st, " "), "shots", G.humans.shots)
+        log("6s under bandit fire on foot: hp", Pl.health, "mode", Pl.mode) Pl.health = 100 G.game.godMode = true end)
+    S(0.2, function()
+        local an = W.anomalies[1]
+        teleport(an.x + 9, an.z + 2, 0, -0.1)
+        lookAt(an.x, an.y + 0.8, an.z)
+    end)
+    S(2.0, nil, "57_anomaly")
+    S(0.2, function()
+        Pl.placeWalking("tank", 0.9, 0.62, -0.6, -2.4)
+        Pl.pitch = -0.05
+        local C = G.creatures
+        local c = { kind = "hound", def = C.KINDS.hound, x = T.x + 60, y = T.y, z = T.z - 40, yaw = 0, hp = 90, state = "idle", timer = 99,
+                    homeX = T.x + 60, homeZ = T.z - 40, homeR = 3, group = C.groups[1], phase = 0, speed = 0, attackT = 0, jaw = 0,
+                    hurtT = 0, alertT = 0, deathT = 0, lastSeenT = 99, pain = 0 }
+        table.insert(C.list, c)
+    end)
+    S(3.5, nil, "58_radar_inside")
+    S(0.2, function() G.game.godMode = false end)
     S(0.2, function() Game.state = "pause" end, "41_pause")
     S(0.2, function() Game.state = "settings" end, "42_settings")
     S(0.2, function() Game.state = "message" Game.message = { title = "TEST", body = "Body text" } end)

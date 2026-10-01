@@ -53,6 +53,10 @@ local function icon(kind, x, y, s, a)
         lg.polygon("line", x - 6, y + 5, x - 6, y - 1, x - 2, y + 1, x - 2, y - 1, x + 2, y + 1, x + 2, y - 7, x + 5, y - 7, x + 5, y + 5)
     elseif kind == "forest" then
         for i = -1, 1 do lg.polygon("line", x + i * 5, y - 5 + (i % 2) * 2, x + i * 5 - 3, y + 3, x + i * 5 + 3, y + 3) end
+    elseif kind == "camp" then
+        lg.polygon("line", x - 6, y + 4, x, y - 5, x + 6, y + 4)
+        lg.line(x, y - 5, x, y + 4)
+        lg.setColor(1, 0.6, 0.25, a) lg.circle("fill", x + 7, y + 3, 1.5, 6)
     elseif kind == "checkpoint" then
         lg.line(x - 6, y + 3, x + 6, y - 2) lg.rectangle("line", x - 7, y + 3, 3, 3)
     end

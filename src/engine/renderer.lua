@@ -137,8 +137,14 @@ function R.beginFrame()
     send(sh, "ambient", e.ambient)
     send(sh, "interiorAmbient", e.interiorAmbient)
     send(sh, "fogColor", e.fogColor)
-    send(sh, "snapRes", { R.lowW * 0.5, R.lowH * 0.5 })
-    send(sh, "affine", 0.55)
+    -- retro wobble (vertex snapping + affine UVs) is optional; default is stable textures
+    if R.wobble then
+        send(sh, "snapRes", { R.lowW * 0.5, R.lowH * 0.5 })
+        send(sh, "affine", 0.35)
+    else
+        send(sh, "snapRes", { 8192, 8192 })
+        send(sh, "affine", 0.0)
+    end
     send(sh, "flipY", -1)
     send(sh, "spotPos", R.spot)
     send(sh, "spotDir", R.spotDir)

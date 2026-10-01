@@ -276,6 +276,16 @@ function T.init()
         local a = clamp01(1 - d) * (0.6 + tnoise(x, y, s, 4, 32) * 0.6)
         return 1, 1, 1, a
     end)
+    make("grass", 16, function(x, y, s, r)
+        -- dry stalks poking out of the snow (alpha cut-out)
+        local blade = U.hash2(x, 0, 51)
+        local height = 4 + blade * 11
+        if (s - y) < height and (x % 3 ~= 1 or blade > 0.6) then
+            local v = 0.45 + U.hash2(x, y, 52) * 0.2
+            return v * 1.05, v * 0.88, v * 0.55, 1
+        end
+        return 0, 0, 0, 0
+    end)
     make("blob", 16, function(x, y, s)
         local dx, dy = math.abs((x - 7.5) / 7.5), math.abs((y - 7.5) / 7.5)
         local d = (dx ^ 4 + dy ^ 4) ^ 0.25

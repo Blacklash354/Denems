@@ -22,7 +22,7 @@ Requires LÖVE 11.4 or newer (tested on 11.5). The first launch takes a few seco
 | Interact / leave a seat | `E` (some actions are hold-to-complete) |
 | Flashlight | `F` |
 | Fire / aim / reload | `LMB` / `RMB` / `R` |
-| Rifle / pistol | `1` / `2` |
+| Rifle / PPSh-41 / pistol | `1` / `2` / `3` or mouse wheel |
 | Inventory / map / objectives | `Tab` / `M` / hold `J` |
 | Quick save / load | `F5` / `F9` |
 | Pause | `Esc` |
@@ -43,8 +43,27 @@ Climb the ladder, open the hatch, and climb out onto the turret roof. You can st
 use the rear ladder to get down, repair tracks or other parts, refuel at the filler cap, use the bustle
 storage box, and climb back in through the hatch.
 
+Retro vertex wobble/affine textures are off by default (stable textures); enable "RETRO WOBBLE" in settings.
+
 Components (engine, both tracks, turret, cannon and hull) can be damaged. Repairs cost repair kits.
 You can build repair kits from spare parts.
+
+## The people of the Zone
+
+Loners rest at camp fires (the Loners' Camp south of the village, Yegor at the hunter's cabin). Talk to them for
+hints and a gift, trade with Old Petro, and they will fight mutants that wander close. Shooting a loner turns the
+camp hostile. Bandits hold the checkpoint, the military base and the radio tower: they patrol, raise the alarm,
+keep their distance while firing bursts, and run when your tank rolls in. Bodies can be searched.
+
+Mutants only live in their lairs: the forest by the river, the factory, the bunker and the nuclear plant.
+Anomalies (electric discharges and gravitational vortexes) crackle in a few places; a detector beeps as you get close.
+
+## Radar and compass
+
+The tank carries a radar: a live green scope on the left sponson inside the hull, mirrored on the HUD whenever
+you are inside. New contacts are announced ("RADAR: HOSTILES NE 140M") and show up on the compass ribbon.
+The compass at the top of the screen shows the headings, the objective with distance, known places and,
+on foot, where you left the tank.
 
 ## Locations
 

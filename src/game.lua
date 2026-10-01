@@ -280,6 +280,42 @@ local function registerWorld()
                 enabled = function() return G.missions.stage >= 8 end,
                 use = function() Game.ending() end })
     end
+    for i in ipairs(G.humans.list) do
+        local function hu() return G.humans.list[i] end
+        local function headPos() local h = hu() return { h.x, h.y + (h.state == "sit" and 1.0 or 1.45), h.z } end
+        I.add({ space = "exterior", pos = { 0, 0, 0 }, radius = 0.6, range = 2.8,
+                frame = function()
+                    local h = hu()
+                    local f = Game.npcFrame or require("src.engine.math3d").frame()
+                    Game.npcFrame = f
+                    f:setYaw(0)
+                    f.px, f.py, f.pz = h.x, h.y + (h.state == "sit" and 1.0 or 1.4), h.z
+                    return f
+                end,
+                prompt = function()
+                    local h = hu()
+                    if h.state == "dead" then return not h.looted and "SEARCH BODY" or nil end
+                    if h.hostile then return nil end
+                    if h.key == "petro" then return "TRADE WITH " .. h.name end
+                    return "TALK TO " .. h.name
+                end,
+                hold = function() local h = hu() return h.state == "dead" and 1.0 or nil end,
+                use = function()
+                    local h = hu()
+                    if h.state == "dead" then
+                        h.looted = true
+                        local got = {}
+                        for _, e in ipairs(h.loot) do
+                            local n = G.inventory.player:add(e[1], e[2])
+                            if n > 0 then got[#got + 1] = Inv.ITEMS[e[1]].name .. " x" .. n end
+                        end
+                        G.ui.notify(#got > 0 and ("FOUND: " .. table.concat(got, ", ")) or "NOTHING USEFUL")
+                        G.audio.play("pickup", {})
+                        return
+                    end
+                    Game.talk(h)
+                end })
+    end
     for i in ipairs(G.enemies.tanks) do
         -- look the tank up by index: enemy tank tables are recreated on new game / load
         local function tank() return G.enemies.tanks[i] end
@@ -388,6 +424,67 @@ function Game.showMessage(title, body)
     G.audio.play("notify", {})
 end
 
+function Game.talk(h)
+    local H = G.humans
+    local lines = (h.key and H.LINES[h.key]) or { "Good hunting, stalker. Stay warm.", "The Zone gives, the Zone takes." }
+    h.talkIdx = ((h.talkIdx or 0) % #lines) + 1
+    local body = lines[h.talkIdx]
+    if not h.talked and h.key and H.GIFTS[h.key] then
+        local got = {}
+        for _, e in ipairs(H.GIFTS[h.key]) do
+            local n = G.inventory.player:add(e[1], e[2])
+            if n > 0 then got[#got + 1] = Inv.ITEMS[e[1]].name .. " x" .. n end
+        end
+        if #got > 0 then body = body .. "\n\nHere, take this: " .. table.concat(got, ", ") .. "." end
+    end
+    h.talked = true
+    G.missions.event("talked", h.key)
+    if h.key == "petro" then
+        Game.trader = h
+        Game.state = "trade"
+        Game.tradeLine = body
+        love.mouse.setRelativeMode(false)
+        G.audio.play("voice", { volume = 0.5 })
+        return
+    end
+    Game.showMessage(h.name, body)
+    G.audio.play("voice", { volume = 0.5 })
+end
+
+function Game.drawTrade()
+    local UI = G.ui
+    local inv = G.inventory.player
+    local H = G.humans
+    lg.setColor(0, 0, 0, 0.6)
+    lg.rectangle("fill", 0, 0, UI.VW, UI.VH)
+    local x, y, w, h = 80, 30, 480, 300
+    UI.panel(x, y, w, h)
+    UI.text("OLD PETRO - TRADER", x + 10, y + 8, UI.COL.amber, UI.fontM)
+    UI.text(Game.tradeLine or "", x + 10, y + 26, UI.COL.text, UI.fontS, "left", w - 20)
+    local function list(items)
+        local t = {}
+        for _, e in ipairs(items) do t[#t + 1] = e[2] .. " " .. Inv.ITEMS[e[1]].name end
+        return table.concat(t, " + ")
+    end
+    for i, tr in ipairs(H.TRADES) do
+        local ry = y + 58 + (i - 1) * 26
+        local ok = true
+        for _, e in ipairs(tr.give) do if inv:count(e[1]) < e[2] then ok = false end end
+        UI.text("GIVE " .. list(tr.give), x + 12, ry + 2, ok and UI.COL.text or UI.COL.dim, UI.fontS)
+        UI.text("GET  " .. list(tr.get), x + 12, ry + 11, ok and UI.COL.good or UI.COL.dim, UI.fontS)
+        if UI.button("TRADE", x + w - 90, ry + 2, 76, 18, ok) then
+            for _, e in ipairs(tr.give) do inv:remove(e[1], e[2]) end
+            for _, e in ipairs(tr.get) do
+                local n = inv:add(e[1], e[2])
+                if n < e[2] then G.inventory.tank:add(e[1], e[2] - n) G.ui.notify("NO ROOM - SENT TO TANK STORAGE ON RETURN") end
+            end
+            G.ui.notify("TRADED FOR " .. list(tr.get))
+            G.audio.play("pickup", {})
+        end
+    end
+    UI.text("[E/ESC] LEAVE", x + 10, y + h - 14, UI.COL.dim, UI.fontS)
+end
+
 function Game.ending()
     G.missions.event("signal_found")
     Game.state = "ending"
@@ -440,6 +537,7 @@ function Game.newGame()
     G.weather.load({ intensity = 0.3, target = 0.3, phaseT = 120 })
     G.creatures.load(nil)
     G.enemies.reset()
+    G.humans.reset()
     G.effects.clear()
     for _, c in ipairs(W.containers) do c.loot = U.copy(c.initialLoot) c.searched = false c.dirty = false c.countedVillage = false end
     for _, p in ipairs(W.pickups) do p.taken = false p.count = p.initialCount end
@@ -506,6 +604,11 @@ function Game.collectLights()
     G.enemies.addLights(list)
     local cam = G.camera
     local t = love.timer.getTime()
+    -- soft fill light so the weapon in your hands is readable against the bright sky
+    if G.player.mode == "walk" and G.player.frameName == "world" then
+        list[#list + 1] = { cam.x + cam.ux * 0.35 + cam.fx * 0.15, cam.y + cam.uy * 0.35 + cam.fy * 0.15, cam.z + cam.uz * 0.35 + cam.fz * 0.15,
+                            1.3, 0.8, 0.8, 0.85, 0.9 }
+    end
     for _, l in ipairs(G.world.staticLights) do
         local d = U.dist3(cam.x, cam.y, cam.z, l.x, l.y, l.z)
         if d < 140 + l.radius then
@@ -536,6 +639,9 @@ function Game.update(dt)
         G.weapons.update(dt)
         G.creatures.update(dt)
         G.enemies.update(dt)
+        G.humans.update(dt)
+        G.radar.update(dt)
+        G.ambience.update(dt)
         G.survival.update(dt)
         G.missions.update(dt)
         G.radio.update(dt)
@@ -627,10 +733,18 @@ function Game.drawWorld()
             shadows[#shadows + 1] = { x = c.x, z = c.z, y = c.underground and c.y or nil, yaw = c.yaw, l = r * 1.4, w = r, a = 0.6 }
         end
     end
+    for _, h in ipairs(G.humans.list) do
+        if U.dist2(cam.x, cam.z, h.x, h.z) < 70 then
+            local dead = h.state == "dead"
+            shadows[#shadows + 1] = { x = h.x, z = h.z, yaw = h.yaw, l = dead and 1.0 or 0.45, w = 0.4, a = 0.55 }
+        end
+    end
     G.effects.drawShadows(shadows)
     G.tank.draw(cam)
     G.enemies.draw()
     G.creatures.draw()
+    G.humans.draw()
+    if not G.environment.underground then G.ambience.draw() end
     G.effects.drawCasings()
     G.effects.drawParticles()
     G.weather.draw()
@@ -640,6 +754,7 @@ end
 function Game.draw()
     local sw, sh = lg.getDimensions()
     G.player.updateCamera(G.camera)
+    if U.dist3(G.camera.x, G.camera.y, G.camera.z, G.tank.x, G.tank.y, G.tank.z) < 25 then G.radar.render() end
     R.setCamera(G.camera)
     Game.drawWorld()
     R.endFrame(sw, sh)
@@ -651,6 +766,7 @@ function Game.draw()
     elseif Game.state == "storage" then UI.drawStorage()
     elseif Game.state == "map" then G.map.draw(UI)
     elseif Game.state == "message" then Game.drawMessage()
+    elseif Game.state == "trade" then Game.drawTrade()
     elseif Game.state == "pause" then G.menu.drawPause()
     elseif Game.state == "settings" then G.menu.drawSettings(function() Game.state = "pause" end)
     elseif Game.state == "dead" then Game.drawDead()
@@ -663,7 +779,7 @@ function Game.drawHelp(a)
     local UI = G.ui
     local lines = {
         "WASD MOVE   SHIFT SPRINT   C CROUCH   SPACE JUMP   E INTERACT / LEAVE SEAT",
-        "F FLASHLIGHT   LMB FIRE   RMB AIM   R RELOAD   1/2 WEAPONS   TAB INVENTORY   M MAP",
+        "F FLASHLIGHT   LMB FIRE   RMB AIM   R RELOAD   1/2/3 OR WHEEL WEAPONS   TAB INVENTORY   M MAP",
         "J OBJECTIVES   F5 QUICKSAVE   F9 QUICKLOAD   ESC PAUSE",
     }
     for i, l in ipairs(lines) do UI.text(l, 0, 250 + i * 10, { 0.85, 0.85, 0.8, a * 0.9 }, UI.fontS, "center", UI.VW) end
@@ -688,7 +804,8 @@ function Game.drawDead()
     local causes = { cold = "YOU FROZE TO DEATH", radiation = "RADIATION SICKNESS TOOK YOU", fall = "YOU FELL",
                      tank = "YOUR TANK WAS DESTROYED WITH YOU INSIDE", tank_lost = "WITHOUT THE TANK, THE WINTER TAKES YOU",
                      hound = "TORN APART BY FROST HOUNDS", crawler = "THE CRAWLERS GOT YOU", burrower = "DRAGGED BENEATH THE SNOW",
-                     mutant = "CRUSHED BY THE MUTANT", explosion = "KILLED BY AN EXPLOSION", shot = "SHOT DEAD" }
+                     mutant = "CRUSHED BY THE MUTANT", explosion = "KILLED BY AN EXPLOSION", shot = "SHOT DEAD",
+                     anomaly = "THE ANOMALY TORE YOU APART" }
     lg.setColor(0, 0, 0, 0.5)
     lg.rectangle("fill", 0, 0, UI.VW, UI.VH)
     UI.text("YOU ARE DEAD", 0, 110, UI.COL.warn, UI.fontXL, "center", UI.VW)
@@ -761,7 +878,8 @@ function Game.keypressed(key)
         end
         if key == "r" then G.weapons.reload() return end
         if key == "1" then G.weapons.switch("rifle") return end
-        if key == "2" then G.weapons.switch("pistol") return end
+        if key == "2" then G.weapons.switch("smg") return end
+        if key == "3" then G.weapons.switch("pistol") return end
     elseif Game.state == "inventory" then
         if key == "tab" or key == "i" or key == "escape" then Game.state = "play" love.mouse.setRelativeMode(true) end
         if key == "m" then Game.state = "map" end
@@ -769,6 +887,8 @@ function Game.keypressed(key)
         if key == "e" or key == "escape" or key == "tab" then Game.state = "play" love.mouse.setRelativeMode(true) end
     elseif Game.state == "map" then
         if key == "m" or key == "escape" or key == "tab" then Game.state = "play" love.mouse.setRelativeMode(true) end
+    elseif Game.state == "trade" then
+        if key == "e" or key == "escape" or key == "tab" then Game.state = "play" love.mouse.setRelativeMode(true) end
     elseif Game.state == "message" then
         if key == "escape" or key == "e" or key == "return" then Game.state = "play" love.mouse.setRelativeMode(true) end
     elseif Game.state == "pause" then
@@ -790,6 +910,7 @@ end
 function Game.wheelmoved(x, y)
     local Pl = G.player
     if Game.state == "play" and Pl.mode == "seat" and Pl.station.wheelmoved then Pl.station.wheelmoved(y) end
+    if Game.state == "play" and Pl.mode == "walk" and y ~= 0 then G.weapons.cycle(y > 0 and -1 or 1) end
 end
 
 function Game.mousemoved(x, y, dx, dy)

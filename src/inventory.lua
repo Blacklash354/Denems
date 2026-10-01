@@ -6,7 +6,7 @@ Inv.ITEMS = {
     he_shell = { name = "HE SHELL", carry = 4, icon = "shell", desc = "High explosive round. Devastating against creatures." },
     mg_ammo = { name = "MG AMMO", carry = 600, icon = "ammo", desc = "Belted 7.92mm for the bow machine gun." },
     rifle_ammo = { name = "RIFLE AMMO", carry = 60, icon = "ammo", desc = "Stripper clips for the Karabiner." },
-    pistol_ammo = { name = "PISTOL AMMO", carry = 48, icon = "ammo", desc = "9mm rounds for the pistol." },
+    pistol_ammo = { name = "TOKAREV AMMO", carry = 213, icon = "ammo", desc = "7.62x25 rounds for the PPSh-41 and the TT-33 pistol." },
     fuel = { name = "FUEL CAN", carry = 2, icon = "fuel", desc = "20 litres. Pour into the tank to refuel (+18%)." },
     food = { name = "FOOD", carry = 10, icon = "food", desc = "Tinned rations. Restores health and warmth.", use = true },
     water = { name = "WATER", carry = 10, icon = "water", desc = "Melted snow in a canteen. Restores stamina.", use = true },
@@ -79,7 +79,7 @@ function Inv.init(game)
 end
 
 function Inv.reset()
-    Inv.player:load({ rifle_ammo = 20, pistol_ammo = 16, food = 1, medkit = 1, battery = 1 })
+    Inv.player:load({ rifle_ammo = 20, pistol_ammo = 90, food = 1, medkit = 1, battery = 1 })
     Inv.tank:load({ ap_shell = 6, he_shell = 4, mg_ammo = 450, food = 3, water = 4, medkit = 1, repair_kit = 1, battery = 1, tools = 1 })
 end
 
