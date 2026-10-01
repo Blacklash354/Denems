@@ -179,6 +179,7 @@ function R.defaults()
     send(sh, "uvOffset", { 0, 0 })
     send(sh, "fogRange", { e.fogStart, e.fogEnd })
     sendCached(sh, "fogMax", 1)
+    sendCached(sh, "alphaCut", 0.5)
     cur.tint, cur.uv, cur.fog, cur.amb = false, false, false, false
 end
 
@@ -190,6 +191,7 @@ function R.drawModel(model, matrix, params)
     if params then
         sendCached(sh, "uInterior", params.interior or 0)
         sendCached(sh, "uEmissive", params.emissive or 0)
+        sendCached(sh, "alphaCut", params.alphaCut or 0.5)
         if params.tint then send(sh, "uTint", params.tint) cur.tint = true
         elseif cur.tint then send(sh, "uTint", { 1, 1, 1, 1 }) cur.tint = false end
         if params.amb then send(sh, "interiorAmbient", params.amb) cur.amb = true
@@ -208,6 +210,7 @@ function R.drawModel(model, matrix, params)
     else
         sendCached(sh, "uInterior", 0)
         sendCached(sh, "uEmissive", 0)
+        sendCached(sh, "alphaCut", 0.5)
         if cur.amb then send(sh, "interiorAmbient", R.env.interiorAmbient) cur.amb = false end
         if cur.tint then send(sh, "uTint", { 1, 1, 1, 1 }) cur.tint = false end
         if cur.uv then send(sh, "uvOffset", { 0, 0 }) cur.uv = false end
@@ -230,7 +233,7 @@ function R.visible(x, y, z, radius)
     local cam = R.cam
     local dx, dy, dz = x - cam.x, y - cam.y, z - cam.z
     local d2 = dx * dx + dy * dy + dz * dz
-    local far = R.drawDist + radius
+    local far = math.min(R.drawDist, R.env.fogEnd + 40) + radius
     if d2 > far * far then return false end
     if d2 < radius * radius then return true end
     local d = math.sqrt(d2)

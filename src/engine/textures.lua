@@ -276,6 +276,12 @@ function T.init()
         local a = clamp01(1 - d) * (0.6 + tnoise(x, y, s, 4, 32) * 0.6)
         return 1, 1, 1, a
     end)
+    make("blob", 16, function(x, y, s)
+        local dx, dy = math.abs((x - 7.5) / 7.5), math.abs((y - 7.5) / 7.5)
+        local d = (dx ^ 4 + dy ^ 4) ^ 0.25
+        local a = 1 - math.max(0, math.min(1, (d - 0.72) / 0.28))
+        return 1, 1, 1, a
+    end)
     make("flare", 16, function(x, y, s)
         local dx, dy = (x - 7.5) / 7.5, (y - 7.5) / 7.5
         local d = math.sqrt(dx * dx + dy * dy)

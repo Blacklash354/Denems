@@ -85,12 +85,13 @@ vec4 position(mat4 transformProjection, vec4 vertexPosition) {
 #endif
 
 #ifdef PIXEL
+uniform float alphaCut;
 vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
     vec2 uv = vAff.xy / vAff.z;
     vec4 t = Texel(tex, uv);
-    if (t.a < 0.5) discard;
+    if (t.a < alphaCut) discard;
     vec3 c = t.rgb * vLight.rgb;
     c = mix(c, fogColor, vFog);
-    return vec4(c, vLight.a);
+    return vec4(c, vLight.a * t.a);
 }
 #endif

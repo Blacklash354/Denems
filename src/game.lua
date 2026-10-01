@@ -612,6 +612,22 @@ function Game.drawWorld()
             R.drawModel(model, m, { interior = W.isUnderground(p.x, p.y + 0.5, p.z) and 1 or 0, tint = hl and { 1.5, 1.4, 1.2, 1 } or nil })
         end
     end
+    -- blob shadows
+    local shadows = {}
+    local T = G.tank
+    if not under then
+        shadows[#shadows + 1] = { x = T.x, z = T.z, yaw = T.yaw, l = 5.2, w = 3.0, a = 0.75 }
+        for _, e in ipairs(G.enemies.tanks) do
+            if U.dist2(cam.x, cam.z, e.x, e.z) < 150 then shadows[#shadows + 1] = { x = e.x, z = e.z, yaw = e.yaw, l = 4.3, w = 2.5, a = 0.75 } end
+        end
+    end
+    for _, c in ipairs(G.creatures.list) do
+        if c.state ~= "buried" and c.state ~= "dead" and U.dist2(cam.x, cam.z, c.x, c.z) < 80 then
+            local r = c.def.radius * 1.6
+            shadows[#shadows + 1] = { x = c.x, z = c.z, y = c.underground and c.y or nil, yaw = c.yaw, l = r * 1.4, w = r, a = 0.6 }
+        end
+    end
+    G.effects.drawShadows(shadows)
     G.tank.draw(cam)
     G.enemies.draw()
     G.creatures.draw()

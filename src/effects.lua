@@ -34,6 +34,13 @@ function E.init(game)
     E.decalMesh:setTexture(Textures.get("white"))
     E.decalCount, E.decalNext, E.decalDirty = 0, 0, false
     E.decalModel = { parts = { { mesh = E.decalMesh } }, tris = 0 }
+    -- blob shadows (rebuilt every frame)
+    E.MAXSHADOW = 64
+    E.shadowData = love.data.newByteData(E.MAXSHADOW * 6 * ffi.sizeof("psx_vertex"))
+    E.shadowPtr = ffi.cast("psx_vertex*", E.shadowData:getFFIPointer())
+    E.shadowMesh = lg.newMesh(MB.FORMAT, E.MAXSHADOW * 6, "triangles", "stream")
+    E.shadowMesh:setTexture(Textures.get("blob"))
+    E.shadowModel = { parts = { { mesh = E.shadowMesh } }, tris = 0 }
     -- casing models
     local mb = MB.new(5)
     mb:material("brass"):color(1, 1, 1)
@@ -348,6 +355,41 @@ function E.drawDecals()
     lg.setDepthMode("lequal", false)
     E.decalModel.tris = E.decalCount * 2
     R.drawModel(E.decalModel, nil, { fog = { R.env.fogStart, R.env.fogEnd, 1 } })
+    lg.setDepthMode("lequal", true)
+end
+
+-- soft-edged dark blobs under vehicles and creatures (classic PSX grounding trick)
+function E.drawShadows(list)
+    local n = 0
+    local W = G.world
+    local ptr = E.shadowPtr
+    local order = { 1, 3, 2, 1, 4, 3 }
+    local uv = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } }
+    for _, s in ipairs(list) do
+        if n >= E.MAXSHADOW then break end
+        local c, sn = math.cos(s.yaw), math.sin(s.yaw)
+        local pts = {}
+        for k, o in ipairs({ { -s.l, -s.w }, { s.l, -s.w }, { s.l, s.w }, { -s.l, s.w } }) do
+            local px, pz = s.x + c * o[1] - sn * o[2], s.z + sn * o[1] + c * o[2]
+            local py = s.y or W.height(px, pz)
+            pts[k] = { px, py + 0.07, pz }
+        end
+        for i = 1, 6 do
+            local p = pts[order[i]]
+            local v = ptr[n * 6 + i - 1]
+            v.x, v.y, v.z = p[1], p[2], p[3]
+            v.u, v.v = uv[order[i]][1], uv[order[i]][2]
+            v.nx, v.ny, v.nz = 0, 1, 0
+            v.r, v.g, v.b, v.a = 0, 0, 0, (s.a or 0.5) * 255
+        end
+        n = n + 1
+    end
+    if n == 0 then return end
+    E.shadowMesh:setVertices(E.shadowData)
+    E.shadowMesh:setDrawRange(1, n * 6)
+    E.shadowModel.tris = n * 2
+    lg.setDepthMode("lequal", false)
+    R.drawModel(E.shadowModel, nil, { emissive = 1, alphaCut = 0.02 })
     lg.setDepthMode("lequal", true)
 end
 
