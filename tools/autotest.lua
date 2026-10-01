@@ -188,6 +188,157 @@ function A.start(game)
         local ok2 = Game.loadGame()
         log("load", ok2, "fuel restored", T.fuel)
     end)
+    -- 13: gameplay flow checks ------------------------------------------------
+    local I = require("src.interaction")
+    local R = require("src.engine.renderer")
+    for _, spot in ipairs({ { "village", -170, 300 }, { "industrial", -270, -30 }, { "forest", 300, 180 }, { "plant", 120, -420 }, { "base", -230, -330 } }) do
+        S(0.2, function() teleport(spot[2], spot[3], 0, 0) end)
+        S(0.5, function() log("perf", spot[1], "draws", R.stats.draws, "tris", math.floor(R.stats.tris)) end)
+    end
+    S(0.2, function() log("audio enabled", G.audio.enabled) end)
+    -- headroom in the front compartment
+    S(0.2, function() Pl.placeWalking("tank", 1.2, 0.62, 0.0, 0) T.speed = 0 press("w") end)
+    S(1.2, function() end)
+    S(0.1, function() press() log("front compartment: x", Pl.x, "height", Pl.height) end)
+    -- exterior collision with the hull
+    S(0.2, function()
+        local x, y, z = T.frame:toWorld(0, 0, 5)
+        teleport(x, z, T.yaw + math.pi / 2 + math.pi, 0)
+        Pl.yaw = math.atan2(T.z - z, T.x - x)
+        press("w")
+    end)
+    S(2.0, function() end)
+    S(0.1, function()
+        press()
+        local lx, ly, lz = T.frame:toLocal(Pl.x, Pl.y, Pl.z)
+        log("pushing into hull: local z", lz, "(should stay > 2.2)")
+    end)
+    -- climb in through the hatch from the turret roof
+    S(0.2, function()
+        T.hatchOpen = true T.hatchAnim = 1
+        local x, y, z = T.turretWorld:toWorld(-0.2, 1.12, -0.5)
+        Pl.placeWalking("world", x, y + 0.05, z, 0)
+    end)
+    S(0.5, function()
+        local hx, hy, hz = T.turretWorld:toWorld(-0.95, 1.45, -0.75)
+        lookAt(hx, hy, hz)
+    end)
+    S(0.3, function() log("hatch prompt:", I.currentText) I.press() press("s") end)
+    S(3.5, function() end)
+    S(0.2, function() press() log("after climbing in: frame", Pl.frameName, "mode", Pl.mode, "pos", Pl.x, Pl.y, Pl.z) end)
+    -- creatures attack the tank while the player is inside
+    S(0.2, function()
+        Pl.placeWalking("tank", 0.5, 0.62, 0.5, 0)
+        local hull = T.comp.hull
+        A.hullBefore = T.comp.trackL + T.comp.trackR + T.comp.hull
+        local g = G.creatures.groups[1]
+        local C = G.creatures
+        local c = { kind = "hound", def = C.KINDS.hound, x = T.x + 6, y = T.y, z = T.z + 6, yaw = 0, hp = 90, state = "chase", timer = 0,
+                    homeX = T.x, homeZ = T.z, homeR = 10, group = g, phase = 0, speed = 0, attackT = 0, jaw = 0, hurtT = 0, alertT = 0,
+                    deathT = 0, lastSeenT = 0, pain = 0 }
+        table.insert(C.list, c)
+        A.testHound = c
+    end)
+    S(6.0, function() end)
+    S(0.1, function() log("hound vs tank: state", A.testHound.state, "tank damage taken", A.hullBefore - (T.comp.trackL + T.comp.trackR + T.comp.hull)) A.testHound.remove = true end)
+    -- enemy tank engages the player's tank
+    S(0.2, function()
+        local e = G.enemies.tanks[1]
+        e.x, e.z = T.x + 120, T.z
+        e.y = W.height(e.x, e.z)
+        e.state = "patrol"
+        A.compBefore = T.comp.hull
+        G.weapons.debug = true
+        log("enemy placed 120m away", "tank at", T.x, T.y, T.z, "enemy y", e.y)
+    end)
+    S(25, function() end)
+    S(0.1, function()
+        local e = G.enemies.tanks[1]
+        log("enemy state", e.state, "want", e.dbgWant, "diff", e.dbgDiff, "pitch", e.gunPitch, "aimT", e.aimT, "reload", e.reload, "player tank hull", T.comp.hull, "before", A.compBefore)
+        G.weapons.debug = false
+        G.enemies.hit(e, 200, e.x, e.y + 1, e.z, 1, 0, "AP")
+        log("enemy alive after hit", e.alive)
+    end)
+    S(2.0, function() end)
+    -- repair
+    S(0.2, function()
+        T.comp.trackR = 20
+        G.inventory.player:add("repair_kit", 1)
+        local x, y, z = T.frame:toWorld(0, 0, 3.4)
+        teleport(x, z, 0, -0.3)
+        local tx, ty, tz = T.frame:toWorld(0, 0.9, 2.15)
+        lookAt(tx, ty, tz)
+    end)
+    S(0.4, function() log("repair prompt:", I.currentText) I.press() press("e") end)
+    S(4.0, function() end)
+    S(0.1, function() press() log("trackR after repair", T.comp.trackR) end)
+    -- refuel
+    S(0.2, function()
+        G.inventory.player:add("fuel", 1)
+        T.fuel = 30
+        local x, y, z = T.frame:toWorld(-3.0, 2.4, 0)
+        Pl.placeWalking("world", x, y + 0.1, z, T.yaw)
+        local fx, fy, fz = T.frame:toWorld(-3.0, 2.45, 0)
+    end)
+    S(0.5, function()
+        local x, y, z = T.frame:toWorld(-2.6, 2.4, 0.0)
+        Pl.placeWalking("world", x, y + 0.05, z, T.yaw + math.pi)
+        local fx, fy, fz = T.frame:toWorld(-3.0, 2.45, 0)
+        lookAt(fx, fy, fz)
+    end)
+    S(0.4, function() log("refuel prompt:", I.currentText) I.press() press("e") end)
+    S(3.0, function() end)
+    S(0.1, function() press() log("fuel after refuel", T.fuel) end)
+    -- doors, bunker transition, keycard, control room, ending
+    S(0.2, function()
+        for _, d in ipairs(W.doors) do
+            if not d.transition and not d.locked then
+                Game.useDoor(d)
+                log("door open", d.open, "collider enabled", d.box.enabled)
+                break
+            end
+        end
+        for _, d in ipairs(W.doors) do
+            if d.transition and d.transition.inside then Game.useDoor(d) break end
+        end
+    end)
+    S(1.5, function() end)
+    S(0.1, function() log("bunker transition: underground", W.isUnderground(Pl.x, Pl.y + 1, Pl.z) ~= nil, "stage", G.missions.stage) end)
+    S(0.2, function()
+        G.inventory.player:add("keycard", 1)
+        G.missions.event("picked", "keycard")
+        for _, d in ipairs(W.doors) do
+            if d.locked then Game.useDoor(d) log("control door unlocked", d.unlocked, "open", d.open) end
+        end
+        local cr = W.controlRoom
+        Pl.placeWalking("world", cr.x0 + 6, cr.y + 0.05, cr.z0 + 4, 0)
+    end)
+    S(0.5, function() end, "39_control_room")
+    S(0.1, function()
+        log("control entered stage", G.missions.stage, G.missions.current() and G.missions.current().id)
+        local c = W.signalConsole
+        lookAt(c.x, c.y, c.z)
+    end)
+    S(0.5, function() end)
+    S(0.2, function()
+        local c = W.signalConsole
+        Pl.placeWalking("world", c.x, cr and cr.y or W.controlRoom.y + 0.05, c.z + 1.6, -math.pi / 2)
+        lookAt(c.x, c.y, c.z)
+    end)
+    S(0.4, function() log("console prompt:", I.currentText) I.press() end)
+    S(3.0, function() log("game state", Game.state, "finished", G.missions.finished) end, "40_ending")
+    S(0.2, function() Game.state = "play" end)
+    -- cold exposure
+    S(0.2, function() teleport(0, 200, 0, 0) G.weather.intensity = 1 G.environment.time = 2 Pl.warmth = 100 A.w0 = Pl.warmth end)
+    S(10, function() end)
+    S(0.1, function() log("warmth after 10s in a night blizzard", Pl.warmth, "from", A.w0) G.weather.intensity = 0.3 G.environment.time = 15 end)
+    S(0.2, function() Game.state = "pause" end, "41_pause")
+    S(0.2, function() Game.state = "settings" end, "42_settings")
+    S(0.2, function() Game.state = "message" Game.message = { title = "TEST", body = "Body text" } end)
+    S(0.2, function() Game.state = "dead" Game.deathCause = "cold" end, "43_dead")
+    S(0.2, function() Game.state = "play" end)
+    S(0.5, function() G.menu.open() G.menu.sub = "settings" end)
+    S(0.3, function() G.menu.sub = "main" end)
     S(0.5, function() G.menu.open() end)
     S(2.5, nil, "38_main_menu")
     S(0.5, function() log("DONE", "frames", A.frames) love.event.quit() end)

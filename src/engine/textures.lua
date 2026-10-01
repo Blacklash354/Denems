@@ -5,6 +5,15 @@ local T = { cache = {} }
 local function clamp01(v) if v < 0 then return 0 elseif v > 1 then return 1 end return v end
 
 local function make(name, size, fn, seed)
+    -- drop-in replacement: assets/textures/<name>.png overrides the procedural texture
+    local path = "assets/textures/" .. name .. ".png"
+    if love.filesystem.getInfo(path) then
+        local img = love.graphics.newImage(path)
+        img:setFilter("nearest", "nearest")
+        img:setWrap("repeat", "repeat")
+        T.cache[name] = img
+        return img
+    end
     local data = love.image.newImageData(size, size)
     local rng = U.rng(seed or #name * 977)
     data:mapPixel(function(x, y)

@@ -22,7 +22,7 @@ function S.update(dt)
         rate = -0.05
         S.shelter = "BUILDING"
     else
-        rate = -(0.14 + w * 0.36 + night * 0.14)
+        rate = -(0.08 + w * 0.22 + night * 0.08)
         S.shelter = nil
     end
     -- standing near fires warms
@@ -35,7 +35,8 @@ function S.update(dt)
     if pl.warmth <= 15 then pl.hurt(dt * (1.2 - pl.warmth / 15), "cold") end
     -- radiation: the hull blocks most of it
     local rad = W.radiationAt(x, y, z)
-    if pl.frameName == "tank" then rad = rad * 0.15 end
+    if pl.frameName == "tank" then rad = rad * 0.15
+    elseif S.shelter == "BUILDING" then rad = rad * 0.5 end
     S.radLevel = rad
     pl.radiation = U.clamp(pl.radiation + rad * dt * 0.9 - dt * 0.01, 0, 100)
     if pl.radiation > 60 then pl.hurt(dt * (pl.radiation - 60) / 25, "radiation") end

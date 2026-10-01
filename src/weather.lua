@@ -59,7 +59,11 @@ function Wt.draw()
     R.send(sh, "boxSize", 24)
     R.send(sh, "density", 0.3 + Wt.intensity * 0.7)
     R.send(sh, "flipY", -1)
-    R.send(sh, "shelter", pl.frameName == "tank" and 1 or 0)
+    local cx, cy, cz = cam.x, cam.y, cam.z
+    local inTank = pl.frameName == "tank"
+    local inBuilding = not inTank and G.world.inShelter(cx, cy, cz)
+    R.send(sh, "shelter", (inTank or inBuilding) and 1 or 0)
+    R.send(sh, "shelterRadius", inBuilding and 9 or 2.5)
     local d = G.environment.daylight
     lg.setColor(0.75 + 0.25 * d, 0.78 + 0.22 * d, 0.85 + 0.15 * d, 0.85)
     lg.setDepthMode("lequal", false)

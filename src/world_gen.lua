@@ -169,6 +169,7 @@ local function tileInterior(map, ox, oy, oz, cell, height, opts)
     end
     local ctx = W.ctx(ox, oz, 0, { interior = true, y = oy, maxEdge = 1.5 })
     local mb = ctx.mb
+    if not opts.underground then ctx:flatten(0, 0, #rows[1] * cell, #rows * cell, 0) end
     local markers = {}
     local floorMat, wallMat, ceilMat = opts.floor or "concrete", opts.wall or "concrete", opts.ceil or "concrete"
     for j = 1, H do
@@ -574,7 +575,7 @@ local function buildBunker()
     -- interior far below
     local oy = h - 45
     local ox, oz = L.x - 10, L.z - 30
-    local ictx, markers, iw, ih = tileInterior(BUNKER_MAP, ox, oy, oz, 2.5, 3.0, { wall = "concrete", wr = 0.6, wg = 0.65, wb = 0.58 })
+    local ictx, markers, iw, ih = tileInterior(BUNKER_MAP, ox, oy, oz, 2.5, 3.0, { wall = "concrete", wr = 0.6, wg = 0.65, wb = 0.58, underground = true })
     W.underground[#W.underground + 1] = { ox - 2, oy - 5, oz - 2, ox + iw + 2, oy + 8, oz + ih + 2, name = "bunker" }
     W.bunkerInfo = { ox = ox, oy = oy, oz = oz }
     local exitPos

@@ -365,6 +365,7 @@ function Props.house(ctx, w, d, opts, rng)
     local wallMat = opts.mat or (rng:next() > 0.5 and "plaster" or "wood")
     local tint = { rng:range(0.75, 0.95), rng:range(0.7, 0.9), rng:range(0.65, 0.85) }
     -- foundation/floor
+    ctx:flatten(x0, z0, x1, z1, 0.25)
     ctx:mat("concrete", 0.6, 0.6, 0.6)
     ctx:solid(x0 - 0.2, -1.5, z0 - 0.2, x1 + 0.2, 0.25, z1 + 0.2)
     ctx:mat("wood", 0.6, 0.55, 0.5)
@@ -513,6 +514,7 @@ function Props.hall(ctx, w, d, h, rng, opts)
     local mb = ctx.mb
     local x0, x1, z0, z1 = -w / 2, w / 2, -d / 2, d / 2
     local wallMat = opts.mat or "metal"
+    ctx:flatten(x0, z0, x1, z1, 0.1)
     ctx:mat("concrete", 0.55, 0.55, 0.55)
     ctx:solid(x0, -1.5, z0, x1, 0.1, z1)
     local doorW = opts.doorW or 7
@@ -563,6 +565,7 @@ end
 function Props.hangar(ctx, w, d, rng)
     local mb = ctx.mb
     local r = d / 2
+    ctx:flatten(-w / 2, -r, w / 2, r, 0.1)
     ctx:mat("concrete", 0.55, 0.55, 0.55)
     ctx:solid(-w / 2, -1.5, -r, w / 2, 0.1, r)
     local seg = 8

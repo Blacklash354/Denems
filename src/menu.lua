@@ -97,7 +97,7 @@ function Menu.drawSettings(back)
     lg.setColor(0, 0, 0, 0.6)
     lg.rectangle("fill", 0, 0, UI.VW, UI.VH)
     local x, y, w = 140, 50, 360
-    UI.panel(x - 10, y - 14, w + 20, 270)
+    UI.panel(x - 10, y - 14, w + 20, 228)
     UI.text("SETTINGS", x, y - 10, UI.COL.amber, UI.fontM)
     y = y + 14
     local old = { s.master, s.sfx, s.music }

@@ -284,16 +284,28 @@ local function updateTank(t, dt)
             if t.lostT > 25 then t.state = "patrol" end
         end
     end
-    -- turret traverse toward target (world yaw -> turret relative)
+    -- turret traverse toward target: work in the hull frame so slopes are handled
     if targetYaw then
-        local rel = U.angleTo(t.yaw, targetYaw)
+        local aimX, aimY, aimZ
+        if t.target then aimX, aimY, aimZ = t.target.x, t.target.y, t.target.z
+        else aimX, aimY, aimZ = t.x + math.cos(targetYaw) * 50, t.y + 2.2, t.z + math.sin(targetYaw) * 50 end
+        local px, py, pz = t.turretFrame.px, t.turretFrame.py + 0.5, t.turretFrame.pz
+        local dist = U.dist2(px, pz, aimX, aimZ)
+        local elev = ballisticPitch(dist, aimY - py, 760)
+        local hx, hz = aimX - px, aimZ - pz
+        local hl = math.sqrt(hx * hx + hz * hz)
+        local wx, wy, wz = hx / hl * math.cos(elev), math.sin(elev), hz / hl * math.cos(elev)
+        local lx, ly, lz = t.frame:dirToLocal(wx, wy, wz)
+        local rel = math.atan2(lz, lx)
         local diff = U.angleTo(t.turretYaw, rel)
         t.turretYaw = t.turretYaw + U.clamp(diff, -0.32 * dt, 0.32 * dt)
         if t.target then
-            local dh = t.target.y - (t.y + 2.2)
-            local want = ballisticPitch(t.targetD, dh, 650) - (t.frame.fy or 0)
-            t.gunPitch = U.approach(t.gunPitch, U.clamp(want, -0.1, 0.35), dt * 0.15)
-            if math.abs(diff) < 0.03 then t.aimT = t.aimT + dt else t.aimT = math.max(0, t.aimT - dt) end
+            local tx2, ty2, tz2 = t.turretFrame:dirToLocal(wx, wy, wz)
+            local want = math.atan2(ty2, math.sqrt(tx2 * tx2 + tz2 * tz2))
+            t.gunPitch = U.approach(t.gunPitch, U.clamp(want, -0.3, 0.35), dt * 0.25)
+            local pitchOk = math.abs(t.gunPitch - U.clamp(want, -0.3, 0.35)) < 0.015
+            t.dbgWant, t.dbgDiff = want, diff
+            if math.abs(diff) < 0.03 and pitchOk then t.aimT = t.aimT + dt else t.aimT = math.max(0, t.aimT - dt) end
             if t.reload <= 0 and t.aimT > 1.4 then
                 E.fire(t)
             end

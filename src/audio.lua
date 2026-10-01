@@ -326,6 +326,17 @@ function A.init(game, settings)
     A.settings = settings
     local ok, err = pcall(function()
         A.data = build()
+        -- drop-in replacements: assets/sounds/<name>.ogg|.wav override the synthesised sound
+        for name in pairs(A.data) do
+            for _, ext in ipairs({ ".ogg", ".wav" }) do
+                local path = "assets/sounds/" .. name .. ext
+                if love.filesystem.getInfo(path) then
+                    local ok, sd = pcall(love.sound.newSoundData, path)
+                    if ok then A.data[name] = sd end
+                    break
+                end
+            end
+        end
         for name, sd in pairs(A.data) do
             local src = love.audio.newSource(sd, "static")
             A.sources[name] = { src }

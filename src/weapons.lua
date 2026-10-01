@@ -199,6 +199,7 @@ function Wp.updateProjectiles(dt)
 end
 
 function Wp.shellImpact(p, x, y, z, what, obj, nx, ny, nz, dx, dy, dz)
+    if Wp.debug then print("[shell]", p.owner, p.kind, "hit", what, x, y, z, obj and (obj.tree and "tree" or "") or "") end
     local he = p.kind == "HE"
     if what == "enemytank" then
         local dmg = he and 22 or 70

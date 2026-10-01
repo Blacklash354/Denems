@@ -282,6 +282,27 @@ function Ctx:worldBox(x0, y0, z0, x1, y1, z1)
     return min(ax, bx, cx, dx), min(ay, by), min(az, bz, cz, dz), max(ax, bx, cx, dx), max(ay, by), max(az, bz, cz, dz)
 end
 
+-- lower the heightfield under a footprint (local rect) so terrain never pokes through floors
+function Ctx:flatten(x0, z0, x1, z1, yLocal)
+    local a, b, c, d, e, f = self:worldBox(x0, yLocal, z0, x1, yLocal, z1)
+    W.flattenRect(a, c, d, f, b)
+end
+
+function W.flattenRect(x0, z0, x1, z1, y)
+    local N, C, H = W.N, W.CELL, W.HALF
+    local i0, i1 = math.floor((x0 + H) / C) - 1, math.ceil((x1 + H) / C) + 1
+    local j0, j1 = math.floor((z0 + H) / C) - 1, math.ceil((z1 + H) / C) + 1
+    for i = math.max(0, i0), math.min(N, i1) do
+        for j = math.max(0, j0), math.min(N, j1) do
+            local gx, gz = -H + i * C, -H + j * C
+            -- vertices adjacent to the footprint
+            if gx >= x0 - C and gx <= x1 + C and gz >= z0 - C and gz <= z1 + C then
+                if W.hgrid[i][j] > y - 0.15 then W.hgrid[i][j] = y - 0.15 end
+            end
+        end
+    end
+end
+
 function Ctx:collider(x0, y0, z0, x1, y1, z1, props)
     local a, b, c, d, e, f = self:worldBox(x0, y0, z0, x1, y1, z1)
     local box = { a, b, c, d, e, f }

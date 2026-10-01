@@ -12,7 +12,8 @@ uniform vec3 wind;      // xz drift and fall speed in y
 uniform float boxSize;
 uniform float density;  // 0..1 portion of flakes visible
 uniform float flipY;
-uniform float shelter;  // inside the tank: flakes hidden near camera
+uniform float shelter;  // inside a shelter: flakes hidden near the camera
+uniform float shelterRadius;
 attribute vec4 FlakeData; // xyz random position, w random seed
 vec4 position(mat4 tp, vec4 vp) {
     vec3 p = FlakeData.xyz * boxSize;
@@ -30,7 +31,7 @@ vec4 position(mat4 tp, vec4 vp) {
     wpos += offs;
     vUV = corner * 0.5 + 0.5;
     float visible = step(seed, density);
-    vAlpha = visible * smoothstep(boxSize * 0.5, boxSize * 0.2, dist) * smoothstep(0.2, 1.0, dist) * (1.0 - shelter * step(dist, 2.5));
+    vAlpha = visible * smoothstep(boxSize * 0.5, boxSize * 0.2, dist) * smoothstep(0.2, 1.0, dist) * (1.0 - shelter * step(dist, shelterRadius));
     vec4 clip = viewProj * vec4(wpos, 1.0);
     clip.y *= flipY;
     return clip;

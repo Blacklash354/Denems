@@ -681,7 +681,7 @@ function C.draw()
             root:setYawPitchRoll(c.yaw, 0, deadRoll)
             local bob = math.abs(math.sin(c.phase)) * 0.04 * math.min(1, c.speed / 3)
             root.px, root.py, root.pz = c.x, c.y + bob - (c.state == "dead" and 0.15 or 0), c.z
-            local params = { tint = c.hurtT > 0 and { 1.8, 0.6, 0.6, 1 } or nil, interior = c.underground and 1 or 0 }
+            local params = { tint = c.hurtT > 0 and { 1.4, 0.85, 0.85, 1 } or nil, interior = c.underground and 1 or 0 }
             if c.kind == "burrower" then
                 local e = c.state == "buried" and (c.emerge or 0) or 1
                 if c.state == "dead" then e = math.max(0, 1 - c.deathT * 0.5) end
