@@ -91,6 +91,11 @@ function A.start(game)
     S(2.0, function() end)
     S(0.1, function() press() log("tank yaw", T.yaw) end)
     S(2.0, function() end)
+    S(0.1, function() love.keypressed("v") log("driver third person", G.stations.driver.third) G.stations.driver.mousemoved(0, 0, 0) press("w") end)
+    S(2.5, nil, "12b_driver_third_person")
+    S(0.1, function() G.stations.driver.mousemoved(900, 0, 0.002) end)
+    S(0.6, nil, "12c_third_person_orbit")
+    S(0.1, function() press() love.keypressed("v") log("third person off", G.stations.driver.third) end)
     -- 6: gunner
     S(0.2, function() Pl.leaveSeat() Pl.enterSeat(G.stations.gunner) end)
     S(1.0, nil, "13_gunner_seat")
@@ -387,6 +392,84 @@ function A.start(game)
         lookAt(T.x, T.y, T.z)
     end)
     S(0.6, nil, "46_track_marks")
+    -- destruction
+    local function nearestD(x, z, pred)
+        local best, bd
+        for _, o in ipairs(W.dobjs) do
+            if o.alive and o.cx and pred(o) then
+                local d = U.dist2 and U.dist2(o.cx, o.cz, x, z) or math.sqrt((o.cx - x) ^ 2 + (o.cz - z) ^ 2)
+                if not bd or d < bd then best, bd = o, d end
+            end
+        end
+        return best, bd
+    end
+    S(0.2, function()
+        G.game.godMode = true
+        G.environment.time = 13 G.weather.intensity = 0.2 G.weather.target = 0.2
+        log("destructible objects", #W.dobjs)
+        local o, d = nearestD(20, 130, function(o) return o.kind == "wood" and o.crush end)
+        A.dWood = o
+        log("nearest wood crushable", o and o.kind, d)
+        if o then
+            teleport(o.cx + 5, o.cz + 1.5, 0, 0)
+            lookAt(o.cx, o.cy, o.cz)
+            G.weapons.current = "smg" G.weapons.mag.smg = 71
+        end
+    end)
+    S(0.8, nil, "60_checkpoint_before")
+    S(0.1, function() if A.dWood then lookAt(A.dWood.cx, A.dWood.cy, A.dWood.cz) end A.mouse[1] = true end)
+    S(1.6, function() end)
+    S(0.1, function() A.mouse[1] = false log("wood after smg burst: alive", A.dWood and A.dWood.alive, "hp", A.dWood and A.dWood.hp) end, "61_checkpoint_shot")
+    S(1.0, nil, "62_checkpoint_debris")
+    S(0.2, function()
+        local o = nearestD(20, 130, function(o) return o.kind == "metal" end)
+        A.dMetal = o
+        if o then
+            local before = o.hp
+            for i = 1, 30 do
+                local ox, oy, oz = o.cx + 12, o.cy + 0.5, o.cz
+                local dx, dy, dz = U.norm3(o.cx - ox, o.cy - oy, o.cz - oz)
+                G.weapons.hitscan(ox, oy, oz, dx, dy, dz, 600, 22, "mg", false)
+            end
+            log("metal", o.kind, "hp", before, "->", o.hp, "alive", o.alive)
+        end
+    end)
+    S(0.2, function()
+        local o, d = nearestD(-150, 300, function(o) return o.kind == "building" end)
+        A.dHouse = o
+        log("nearest house", d)
+        if o then
+            teleport(o.cx + 22, o.cz + 8, 0, 0)
+            lookAt(o.cx, o.cy, o.cz)
+        end
+    end)
+    S(1.0, nil, "63_house_before")
+    S(0.1, function()
+        local o = A.dHouse
+        if o then
+            local ox, oy, oz = o.cx + 18, o.cy + 1, o.cz + 6
+            local dx, dy, dz = U.norm3(o.cx - ox, o.cy - oy, o.cz - oz)
+            G.weapons.fireShell("HE", ox, oy, oz, dx, dy, dz, "player")
+        end
+    end)
+    S(0.25, nil, "64_house_impact")
+    S(0.1, function() log("house after HE: alive", A.dHouse and A.dHouse.alive, "hp", A.dHouse and A.dHouse.hp) end)
+    S(1.2, nil, "65_house_dust")
+    S(0.1, function()
+        local o = A.dHouse
+        if o and o.alive then G.destruction.damage(o, 5000, "he", o.cx, o.cy, o.cz) end
+        log("house destroyed", o and not o.alive)
+    end)
+    S(2.5, nil, "66_house_ruin")
+    S(0.2, function()
+        local o = nearestD(-100, 200, function(o) return o.kind == "vehicle" end)
+        A.dCar = o
+        if o then teleport(o.cx + 10, o.cz + 6, 0, 0) lookAt(o.cx, o.cy, o.cz) end
+    end)
+    S(0.8, nil, "67_vehicle_before")
+    S(0.1, function() local o = A.dCar if o then G.destruction.damage(o, 5000, "he", o.cx, o.cy, o.cz) end end)
+    S(2.0, nil, "68_vehicle_burning")
+    S(0.1, function() G.game.godMode = false end)
     -- v2 features
     S(0.2, function()
         G.game.godMode = true

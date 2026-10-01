@@ -380,7 +380,7 @@ local function driverUI()
     tankSilhouette(x + 98, y + 14, 1)
     local eng = T.engineOn and "ENGINE RUNNING" or (T.engineStarting > 0 and "STARTING..." or "ENGINE OFF")
     text(eng, x + 6, y - 11, T.engineOn and COL.good or COL.amber, UI.fontS)
-    text("[W/S] THROTTLE  [A/D] STEER  [SPACE] BRAKE  [F] ENGINE  [L] LIGHTS  [E] LEAVE SEAT", 0, UI.VH - 9, COL.dim, UI.fontS, "center", UI.VW)
+    text("[W/S] THROTTLE  [A/D] STEER  [SPACE] BRAKE  [F] ENGINE  [L] LIGHTS  [V] CAMERA  [E] LEAVE SEAT", 0, UI.VH - 9, COL.dim, UI.fontS, "center", UI.VW)
 end
 
 local function gunnerUI(optic)

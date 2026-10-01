@@ -239,6 +239,62 @@ function W.initChunks()
     W.interactables = {}
     W.interiorAreas = {}
     W.npcs, W.guitars, W.anomalies = {}, {}, {}
+    W.dobjs = {}
+end
+
+-- context for a destructible object: geometry goes into its own builder so it can be removed later
+local Ctx = {}
+function W.dctx(x, z, rot, kind, hp, opts)
+    opts = opts or {}
+    local obj = { kind = kind, hp = hp or 100, maxHp = hp or 100, colliders = {}, alive = true, crush = opts.crush,
+                  explode = opts.explode, burn = opts.burn, id = #W.dobjs + 1 }
+    local mb = MB.new(#W.dobjs * 31 + 7)
+    mb.texScale = 0.5
+    mb.maxEdge = opts.maxEdge
+    local y = opts.y or W.height(x, z)
+    obj.baseY = y
+    local c = setmetatable({ mb = mb, x = x, y = y, z = z, rot = rot or 0, opts = opts, obj = obj }, Ctx)
+    mb:translate(x, y, z)
+    mb:rotateY(rot or 0)
+    obj.builder = mb
+    W.dobjs[#W.dobjs + 1] = obj
+    return c, obj
+end
+
+function W.addDObj(obj)
+    local ch = W.chunkAt(obj.cx, obj.cz)
+    ch.dobjs = ch.dobjs or {}
+    ch.dobjs[#ch.dobjs + 1] = obj
+    obj.chunk = ch
+end
+
+function W.finishDObj(obj)
+    local raw, b = obj.builder:buildRaw()
+    obj.builder = nil
+    obj.raw = raw
+    if b[1] > b[4] then obj.alive = false obj.empty = true return end
+    obj.bounds = { b[1], b[2], b[3], b[4], b[5], b[6] }
+    obj.cx, obj.cy, obj.cz = (b[1] + b[4]) / 2, (b[2] + b[5]) / 2, (b[3] + b[6]) / 2
+    obj.radius = sqrt((b[4] - b[1]) ^ 2 + (b[5] - b[2]) ^ 2 + (b[6] - b[3]) ^ 2) / 2
+    W.addDObj(obj)
+end
+
+-- re-batch the destructible objects of one chunk (after something was destroyed)
+function W.rebuildChunkD(ch)
+    local list = {}
+    local x0, y0, z0, x1, y1, z1 = math.huge, math.huge, math.huge, -math.huge, -math.huge, -math.huge
+    for _, o in ipairs(ch.dobjs or {}) do
+        if o.alive or o.ruin then
+            list[#list + 1] = o.raw
+            local b = o.bounds
+            x0, y0, z0 = min(x0, b[1]), min(y0, b[2]), min(z0, b[3])
+            x1, y1, z1 = max(x1, b[4]), max(y1, b[5]), max(z1, b[6])
+        end
+    end
+    if #list == 0 then ch.dmodel = nil return end
+    ch.dmodel = MB.mergeRaw(list)
+    ch.dcx, ch.dcy, ch.dcz = (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2
+    ch.dradius = sqrt((x1 - x0) ^ 2 + (y1 - y0) ^ 2 + (z1 - z0) ^ 2) / 2
 end
 
 function W.chunkAt(x, z)
@@ -246,8 +302,7 @@ function W.chunkAt(x, z)
     return W.chunks[ci * NCH + cj]
 end
 
--- Context used by generators: transform + target builder
-local Ctx = {}
+-- Context used by generators: transform + target builder (declared above)
 Ctx.__index = Ctx
 W.Ctx = Ctx
 
@@ -310,6 +365,10 @@ function Ctx:collider(x0, y0, z0, x1, y1, z1, props)
     local box = { a, b, c, d, e, f }
     box.walk = true
     if props then for k, v in pairs(props) do box[k] = v end end
+    if self.obj then
+        box.obj = self.obj
+        self.obj.colliders[#self.obj.colliders + 1] = box
+    end
     W.colliders:add(box)
     return box
 end
@@ -403,6 +462,8 @@ function W.finalize()
     W.landmarkMB = nil
     W.interiorModel = W.interiorMB:build()
     W.interiorMB = nil
+    for _, o in ipairs(W.dobjs) do if o.builder then W.finishDObj(o) end end
+    for _, c in pairs(W.chunks) do if c.dobjs then W.rebuildChunkD(c) end end
 end
 
 ---------------------------------------------------------------------------
@@ -463,6 +524,9 @@ function W.draw(underground)
         for _, c in pairs(chunks) do
             if c.model.radius > 0 and R.visible(c.cx, c.cy, c.cz, c.radius) then
                 R.drawModel(c.model, ident)
+            end
+            if c.dmodel and R.visible(c.dcx, c.dcy, c.dcz, c.dradius) then
+                R.drawModel(c.dmodel, ident)
             end
         end
     end

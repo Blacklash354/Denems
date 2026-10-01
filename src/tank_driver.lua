@@ -7,6 +7,8 @@ function D.init(game) G = game end
 
 function D.enter()
     D.lookYaw, D.lookPitch = 0, -0.02
+    D.orbitYaw, D.orbitPitch = 0, 0.28
+    D.camX = nil
     G.tank.driver = true
     if G.missions then G.missions.event("driver_seat") end
 end
@@ -14,6 +16,7 @@ end
 function D.exit()
     local T = G.tank
     T.driver = false
+    D.third = false
     T.throttle, T.steer = 0, 0
     return 1.75, 0.62, -0.65, math.pi * 0.9
 end
@@ -39,6 +42,10 @@ function D.keypressed(key)
     if key == "f" then
         if T.engineOn then T.stopEngine() else T.startEngine() end
         return true
+    elseif key == "v" then
+        D.third = not D.third
+        D.camX = nil
+        return true
     elseif key == "l" then
         T.headlights = not T.headlights
         if G.audio then G.audio.play("switch", { tank = true }) end
@@ -49,11 +56,59 @@ end
 function D.mousepressed(b) end
 
 function D.mousemoved(dx, dy, sens)
+    if D.third then
+        D.idle = 0
+        D.orbitYaw = D.orbitYaw + dx * sens
+        D.orbitPitch = U.clamp(D.orbitPitch + dy * sens, -0.15, 1.1)
+        return
+    end
     D.lookYaw = U.clamp(D.lookYaw + dx * sens, -0.7, 0.7)
     D.lookPitch = U.clamp(D.lookPitch - dy * sens, -0.35, 0.3)
 end
 
+-- chase camera: orbits the hull, eases in behind it, never dips below the ground
+local function chaseCamera(dt)
+    local T = G.tank
+    local f = T.frame
+    local hx, hz = f.fx, f.fz
+    local hl = math.sqrt(hx * hx + hz * hz)
+    if hl < 1e-4 then hx, hz, hl = 1, 0, 1 end
+    local hy = math.atan2(hz / hl, hx / hl)
+    -- with the mouse idle the orbit swings back behind the hull while driving
+    D.idle = (D.idle or 0) + dt
+    if D.idle > 1.5 and math.abs(T.speed) > 1 then
+        D.orbitYaw = U.damp(D.orbitYaw, 0, 1.2, dt)
+    end
+    local yaw = hy + D.orbitYaw
+    local pitch = D.orbitPitch
+    local dist = 11.5
+    local tx, ty, tz = T.x, T.y + 2.4, T.z
+    local dx, dz = -math.cos(yaw) * math.cos(pitch), -math.sin(yaw) * math.cos(pitch)
+    local px, py, pz = tx + dx * dist, ty + math.sin(pitch) * dist, tz + dz * dist
+    local gy = G.world.height(px, pz) + 0.8
+    if py < gy then py = gy end
+    if not D.camX then
+        D.camX, D.camY, D.camZ = px, py, pz
+    else
+        local k = 1 - math.exp(-dt * 10)
+        D.camX = D.camX + (px - D.camX) * k
+        D.camY = D.camY + (py - D.camY) * k
+        D.camZ = D.camZ + (pz - D.camZ) * k
+    end
+    local fx, fy, fz = U.norm3(tx - D.camX, ty - D.camY, tz - D.camZ)
+    local rx, ry, rz = U.norm3(U.cross(fx, fy, fz, 0, 1, 0))
+    local ux, uy, uz = U.cross(rx, ry, rz, fx, fy, fz)
+    G.camera.set(D.camX, D.camY, D.camZ, fx, fy, fz, ux, uy, uz)
+    G.camera.fov = G.camera.baseFov + math.min(math.abs(T.speed) * 0.006, 0.12)
+end
+
 function D.camera(cam)
+    if D.third then
+        local now = love.timer.getTime()
+        local dt = math.min(now - (D.lastT or now), 0.1)
+        D.lastT = now
+        return chaseCamera(dt)
+    end
     local T = G.tank
     local f = T.frame
     -- eye behind the slit, slight engine vibration

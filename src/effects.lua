@@ -55,7 +55,7 @@ function E.init(game)
 end
 
 function E.clear()
-    E.parts, E.flashes, E.casings = {}, {}, {}
+    E.parts, E.flashes, E.casings, E.debrisList = {}, {}, {}, {}
     E.decalCount, E.decalNext, E.decalDirty = 0, 0, true
 end
 
@@ -170,6 +170,71 @@ function E.tracer(x, y, z, dx, dy, dz, speed, life)
 end
 
 ---------------------------------------------------------------------------
+-- debris chunks flung from destroyed objects
+---------------------------------------------------------------------------
+E.debrisList = {}
+E.debrisModels = {}
+local function debrisModel(mat)
+    local m = E.debrisModels[mat]
+    if m then return m end
+    local mb = MB.new(9)
+    mb.texScale = 2
+    mb:material(mat):color(0.85, 0.85, 0.85)
+    mb:hexa({ { -0.5, -0.4, -0.45 }, { 0.5, -0.5, -0.4 }, { 0.45, -0.45, 0.5 }, { -0.45, -0.5, 0.45 },
+              { -0.4, 0.45, -0.5 }, { 0.5, 0.4, -0.45 }, { 0.4, 0.5, 0.45 }, { -0.5, 0.4, 0.4 } })
+    m = mb:build()
+    E.debrisModels[mat] = m
+    return m
+end
+
+function E.debris(x, y, z, mat, n, power, size)
+    for i = 1, n do
+        if #E.debrisList > 160 then table.remove(E.debrisList, 1) end
+        local a = rnd() * 6.28
+        local sp = power * (0.3 + rnd() * 0.7)
+        E.debrisList[#E.debrisList + 1] = { x = x + rs(0.5), y = y + rnd() * 0.5, z = z + rs(0.5), vx = math.cos(a) * sp, vy = 2 + rnd() * power,
+            vz = math.sin(a) * sp, rx = rnd() * 6, ry = rnd() * 6, sx = rs(8), sy = rs(8), s = size * (0.4 + rnd()), model = debrisModel(mat),
+            life = 14 + rnd() * 8, rest = false, mat = {} }
+    end
+end
+
+local function updateDebris(dt)
+    local W = G.world
+    for i = #E.debrisList, 1, -1 do
+        local d = E.debrisList[i]
+        d.life = d.life - dt
+        if d.life <= 0 then table.remove(E.debrisList, i)
+        elseif not d.rest then
+            d.vy = d.vy - 12 * dt
+            d.x, d.y, d.z = d.x + d.vx * dt, d.y + d.vy * dt, d.z + d.vz * dt
+            d.rx, d.ry = d.rx + d.sx * dt, d.ry + d.sy * dt
+            local gy = W.surfaceHeight(d.x, d.z, d.y + 0.5, 0.1) + d.s * 0.4
+            if d.y < gy then
+                d.y = gy
+                if math.abs(d.vy) < 1.5 then d.rest = true
+                else
+                    d.vy = -d.vy * 0.3
+                    d.vx, d.vz = d.vx * 0.5, d.vz * 0.5
+                    d.sx, d.sy = d.sx * 0.5, d.sy * 0.5
+                    if math.random() < 0.3 then E.snowPuff(d.x, d.y, d.z, 0.4) end
+                end
+            end
+        end
+    end
+end
+
+function E.drawDebris()
+    for _, d in ipairs(E.debrisList) do
+        if R.visible(d.x, d.y, d.z, 1) then
+            local f = M3.frame()
+            f:setYawPitchRoll(d.ry, d.rx, d.rx * 0.5)
+            f.px, f.py, f.pz = d.x, d.y, d.z
+            R.drawModel(d.model, f:matrix(d.mat, d.s))
+        end
+    end
+end
+
+---------------------------------------------------------------------------
 -- casings (physical bits of brass)
 ---------------------------------------------------------------------------
 function E.casing(frameName, x, y, z, big)
@@ -280,6 +345,7 @@ function E.update(dt)
         if f.life <= 0 then table.remove(E.flashes, j) end
     end
     updateCasings(dt)
+    updateDebris(dt)
     -- wind drift for smoke
     local wx, wz = 0, 0
     if G.weather then wx, wz = G.weather.windX or 0, G.weather.windZ or 0 end

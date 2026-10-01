@@ -8,8 +8,9 @@ local function make(name, size, fn, seed)
     -- drop-in replacement: assets/textures/<name>.png overrides the procedural texture
     local path = "assets/textures/" .. name .. ".png"
     if love.filesystem.getInfo(path) then
-        local img = love.graphics.newImage(path)
-        img:setFilter("nearest", "nearest")
+        local img = love.graphics.newImage(path, { mipmaps = true })
+        img:setFilter("linear", "nearest", 8)
+        img:setMipmapFilter("linear")
         img:setWrap("repeat", "repeat")
         T.cache[name] = img
         return img
@@ -23,8 +24,11 @@ local function make(name, size, fn, seed)
         return math.floor(clamp01(r) * q + 0.5) / q, math.floor(clamp01(g) * q + 0.5) / q,
                math.floor(clamp01(b) * q + 0.5) / q, a or 1
     end)
-    local img = love.graphics.newImage(data)
-    img:setFilter("nearest", "nearest")
+    -- mipmapped + anisotropic minification stops distant/grazing textures from crawling when
+    -- the camera turns; magnification stays nearest for the chunky low-res look
+    local img = love.graphics.newImage(data, { mipmaps = true })
+    img:setFilter("linear", "nearest", 8)
+    img:setMipmapFilter("linear")
     img:setWrap("repeat", "repeat")
     T.cache[name] = img
     return img

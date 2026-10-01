@@ -270,6 +270,7 @@ function Wp.hitscan(ox, oy, oz, dx, dy, dz, range, damage, kind, tracer)
         if G.audio then G.audio.play("impact_snow", { x = hx, y = hy, z = hz, volume = 0.5 }) end
     else
         G.effects.dust(hx, hy, hz)
+        if obj and obj.obj and G.destruction then G.destruction.damage(obj.obj, damage, "bullet", hx, hy, hz) end
         if obj and (obj.door or math.random() < 0.4) then G.effects.sparks(hx, hy, hz, nx, ny, nz, 3) end
         if G.audio then G.audio.play("impact_hard", { x = hx, y = hy, z = hz, volume = 0.5 }) end
     end
@@ -308,6 +309,7 @@ function Wp.explode(x, y, z, radius, damage, owner, skipObj)
     end
     if G.enemies then G.enemies.splash(x, y, z, radius, damage, skipObj) end
     if G.humans then G.humans.splash(x, y, z, radius, damage) end
+    if G.destruction then G.destruction.splash(x, y, z, radius * 1.1, damage * 2.5) end
 end
 
 function Wp.updateProjectiles(dt)
@@ -359,6 +361,8 @@ function Wp.shellImpact(p, x, y, z, what, obj, nx, ny, nz, dx, dy, dz)
         G.creatures.damage(obj.c, he and 300 or 600, x, y, z, dx, dz)
     elseif what == "human" then
         G.humans.damage(obj.h, 500, p.owner == "player")
+    elseif what == "world" and obj and obj.obj and G.destruction then
+        G.destruction.damage(obj.obj, he and 700 or 520, "explosion", x, y, z)
     end
     Wp.explode(x, y, z, he and 10 or 4, he and 220 or 70, p.owner)
     if what == "terrain" then

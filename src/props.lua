@@ -269,88 +269,202 @@ function Props.hedgehog(ctx, x, z)
 end
 
 -- vehicles -----------------------------------------------------------------
+local PAINTS = { { 0.42, 0.52, 0.62 }, { 0.72, 0.66, 0.5 }, { 0.45, 0.55, 0.4 }, { 0.62, 0.3, 0.26 }, { 0.75, 0.75, 0.72 } }
+
+local function wheel(mb, x, y, z, r, w, side, burned)
+    mb:material("tread"):color(burned and 0.25 or 0.45, burned and 0.22 or 0.45, burned and 0.2 or 0.45)
+    mb:cylinderZ(z - w / 2, z + w / 2, x, y, r, 10)
+    mb:material(burned and "rust" or "steel"):color(0.55, 0.55, 0.55)
+    local hz = z + side * (w / 2 + 0.005)
+    mb:cylinderZ(math.min(hz, hz - side * 0.01), math.max(hz, hz - side * 0.01), x, y, r * 0.55, 8)
+    mb:material("metal"):color(0.3, 0.3, 0.3)
+    mb:cylinderZ(math.min(hz, hz + side * 0.03), math.max(hz, hz + side * 0.03), x, y, r * 0.15, 6)
+end
+
+-- Soviet military truck (ZIL style): rounded nose, cab, canvas-covered or open bed, dual rear wheels
 function Props.truck(ctx, x, z, rot, burned)
     local mb = ctx.mb
     mb:push() mb:translate(x, 0, z) mb:rotateY(rot or 0)
-    local base = burned and "rust" or "metal"
-    ctx:mat(base, burned and 0.6 or 0.55, burned and 0.5 or 0.6, burned and 0.45 or 0.5)
-    -- cab
-    mb:box(1.6, 0.9, -1.1, 3.3, 2.6, 1.1)
-    mb:hexa({ { 3.3, 0.9, -1.0 }, { 4.4, 0.9, -1.0 }, { 4.4, 0.9, 1.0 }, { 3.3, 0.9, 1.0 },
-              { 3.3, 1.9, -1.0 }, { 4.2, 1.7, -0.9 }, { 4.2, 1.7, 0.9 }, { 3.3, 1.9, 1.0 } })
-    ctx:mat("window", 0.7, 0.7, 0.7)
-    mb:quad(3.31, 1.9, -0.9, 3.31, 2.5, -0.9, 3.31, 2.5, 0.9, 3.31, 1.9, 0.9)
-    -- bed
-    ctx:mat(burned and "rust" or "wood", 0.6, 0.55, 0.5)
-    mb:box(-3.2, 1.0, -1.2, 1.5, 1.2, 1.2)
-    mb:box(-3.2, 1.2, -1.2, 1.5, 2.0, -1.1)
-    mb:box(-3.2, 1.2, 1.1, 1.5, 2.0, 1.2)
-    mb:box(-3.2, 1.2, -1.2, -3.1, 2.0, 1.2)
+    local body = burned and "rust" or "tank"
+    local br, bg, bb = 0.55, 0.62, 0.48
+    if burned then br, bg, bb = 0.45, 0.38, 0.33 end
+    -- chassis rails
+    mb:material("metal"):color(0.25, 0.25, 0.25)
+    mb:box(-3.3, 0.55, -0.55, 3.6, 0.75, -0.4)
+    mb:box(-3.3, 0.55, 0.4, 3.6, 0.75, 0.55)
+    -- engine hood (sloped nose) and grille
+    mb:material(body):color(br, bg, bb)
+    mb:hexa({ { 2.3, 0.85, -0.85 }, { 4.05, 0.85, -0.7 }, { 4.05, 0.85, 0.7 }, { 2.3, 0.85, 0.85 },
+              { 2.3, 1.75, -0.8 }, { 3.85, 1.55, -0.6 }, { 3.85, 1.55, 0.6 }, { 2.3, 1.75, 0.8 } })
+    mb:material("grille"):color(0.7, 0.7, 0.7)
+    mb:quad(4.06, 0.95, 0.55, 4.06, 0.95, -0.55, 3.9, 1.5, -0.5, 3.9, 1.5, 0.5)
+    -- front fenders over the wheels
+    mb:material(body):color(br * 0.9, bg * 0.9, bb * 0.9)
+    for _, sd in ipairs({ -1, 1 }) do
+        local z0, z1 = sd * 0.85, sd * 1.25
+        if sd < 0 then z0, z1 = z1, z0 end
+        mb:hexa({ { 2.6, 0.95, z0 }, { 4.0, 0.95, z0 }, { 4.0, 0.95, z1 }, { 2.6, 0.95, z1 },
+                  { 2.75, 1.3, z0 }, { 3.85, 1.25, z0 }, { 3.85, 1.25, z1 }, { 2.75, 1.3, z1 } })
+    end
+    -- bumper and headlights
+    mb:material("metal"):color(0.3, 0.3, 0.3)
+    mb:box(4.0, 0.6, -1.15, 4.2, 0.82, 1.15)
+    mb:material(burned and "rust" or "white"):color(burned and 0.3 or 0.9, burned and 0.3 or 0.9, burned and 0.3 or 0.75)
+    mb:cylinderX(3.95, 4.1, 1.2, -0.95, 0.11, 0.12, 7)
+    mb:cylinderX(3.95, 4.1, 1.2, 0.95, 0.11, 0.12, 7)
+    -- cab with sloped windshield
+    mb:material(body):color(br, bg, bb)
+    mb:hexa({ { 1.0, 0.85, -1.15 }, { 2.35, 0.85, -1.15 }, { 2.35, 0.85, 1.15 }, { 1.0, 0.85, 1.15 },
+              { 1.0, 2.75, -1.1 }, { 2.05, 2.75, -1.05 }, { 2.05, 2.75, 1.05 }, { 1.0, 2.75, 1.1 } })
+    mb:material("window"):color(0.7, 0.75, 0.8)
+    mb:quad(2.36, 1.8, 1.0, 2.36, 1.8, -1.0, 2.07, 2.65, -0.98, 2.07, 2.65, 0.98)
+    mb:quad(1.25, 1.75, -1.16, 2.1, 1.75, -1.16, 2.0, 2.55, -1.11, 1.25, 2.55, -1.11)
+    mb:quad(2.1, 1.75, 1.16, 1.25, 1.75, 1.16, 1.25, 2.55, 1.11, 2.0, 2.55, 1.11)
+    -- mirrors
+    mb:material("metal"):color(0.3, 0.3, 0.3)
+    mb:box(2.25, 1.9, -1.45, 2.3, 2.3, -1.3)
+    mb:box(2.25, 1.9, 1.3, 2.3, 2.3, 1.45)
+    -- cargo bed
+    mb:material(burned and "rust" or "wood"):color(0.6, 0.52, 0.42)
+    mb:box(-3.4, 0.8, -1.25, 0.9, 0.95, 1.25)
+    for _, sd in ipairs({ -1, 1 }) do
+        for k = 0, 2 do mb:box(-3.4, 1.0 + k * 0.28, sd * 1.25 - 0.04, 0.9, 1.2 + k * 0.28, sd * 1.25 + 0.04) end
+    end
+    mb:box(-3.45, 0.95, -1.25, -3.35, 1.85, 1.25)
+    mb:box(0.82, 0.95, -1.25, 0.92, 2.0, 1.25)
     if not burned then
-        ctx:mat("cloth", 0.55, 0.6, 0.45)
-        mb:hexa({ { -3.2, 2.0, -1.2 }, { 1.5, 2.0, -1.2 }, { 1.5, 2.0, 1.2 }, { -3.2, 2.0, 1.2 },
-                  { -3.2, 3.0, -0.9 }, { 1.5, 3.0, -0.9 }, { 1.5, 3.0, 0.9 }, { -3.2, 3.0, 0.9 } })
+        -- canvas cover on ribs
+        mb:material("cloth"):color(0.45, 0.5, 0.36)
+        local prev
+        for k = 0, 6 do
+            local a = k / 6 * math.pi
+            local zz, yy = -math.cos(a) * 1.25, 1.85 + math.sin(a) * 0.65
+            if prev then
+                mb:quadN(-3.4, prev[2], prev[1], 0.9, prev[2], prev[1], 0.9, yy, zz, -3.4, yy, zz, 0, 1, 0)
+            end
+            prev = { zz, yy }
+        end
+        mb:box(-3.4, 1.85, -1.27, 0.9, 1.9, -1.2)
+        mb:box(-3.4, 1.85, 1.2, 0.9, 1.9, 1.27)
+        mb:material("snow"):color(0.95, 0.97, 1)
+        mb:box(-3.2, 2.45, -0.5, 0.7, 2.55, 0.5)
     end
-    -- wheels
-    ctx:mat("tread", 0.5, 0.5, 0.5)
-    for _, wx in ipairs({ 3.4, -0.8, -2.2 }) do
-        mb:cylinderZ(-1.25, -0.9, wx, 0.5, 0.5, 8)
-        mb:cylinderZ(0.9, 1.25, wx, 0.5, 0.5, 8)
+    -- side fuel tank & spare wheel
+    mb:material("metal"):color(0.35, 0.38, 0.32)
+    mb:cylinderX(-0.2, 0.6, 0.75, -1.05, 0.22, 0.22, 7)
+    wheel(mb, 0.4, 1.35, -1.32, 0.42, 0.25, -1, burned)
+    -- wheels: single front, dual rear
+    for _, sd in ipairs({ -1, 1 }) do
+        wheel(mb, 3.3, 0.52, sd * 1.0, 0.52, 0.32, sd, burned)
+        wheel(mb, -1.2, 0.52, sd * 0.95, 0.52, 0.3, sd, burned)
+        wheel(mb, -2.6, 0.52, sd * 0.95, 0.52, 0.3, sd, burned)
     end
-    ctx:mat("snow", 1, 1, 1)
-    mb:box(1.6, 2.6, -1.1, 3.3, 2.7, 1.1)
+    mb:material("snow"):color(0.95, 0.97, 1)
+    mb:box(1.1, 2.75, -1.0, 2.0, 2.82, 1.0)
+    mb:box(2.4, 1.72, -0.7, 3.6, 1.76, 0.7)
+    ctx:collider(-3.45, 0, -1.3, 4.2, 2.7, 1.3)
     mb:pop()
-    ctx.mb:push() ctx.mb:translate(x, 0, z) ctx.mb:rotateY(rot or 0)
-    ctx:collider(-3.2, 0, -1.25, 4.4, 2.6, 1.25)
-    ctx.mb:pop()
 end
 
-function Props.car(ctx, x, z, rot)
+-- Soviet sedan (Lada / Moskvich style)
+function Props.car(ctx, x, z, rot, paint)
     local mb = ctx.mb
     mb:push() mb:translate(x, 0, z) mb:rotateY(rot or 0)
-    ctx:mat("rust", 0.75, 0.6, 0.55)
-    mb:box(-2.1, 0.35, -0.85, 2.1, 1.0, 0.85)
-    mb:hexa({ { -1.1, 1.0, -0.8 }, { 0.9, 1.0, -0.8 }, { 0.9, 1.0, 0.8 }, { -1.1, 1.0, 0.8 },
-              { -0.9, 1.5, -0.7 }, { 0.5, 1.5, -0.7 }, { 0.5, 1.5, 0.7 }, { -0.9, 1.5, 0.7 } })
-    ctx:mat("snow", 1, 1, 1)
-    mb:box(-0.9, 1.5, -0.7, 0.5, 1.58, 0.7)
-    mb:box(1.0, 1.0, -0.8, 2.1, 1.05, 0.8)
-    ctx:mat("tread", 0.4, 0.4, 0.4)
-    for _, wx in ipairs({ 1.35, -1.35 }) do
-        mb:cylinderZ(-0.9, -0.7, wx, 0.35, 0.35, 7)
-        mb:cylinderZ(0.7, 0.9, wx, 0.35, 0.35, 7)
+    local col = paint or PAINTS[(math.floor(math.abs(x * 7 + z * 3)) % #PAINTS) + 1]
+    local pr, pg, pb = col[1], col[2], col[3]
+    -- lower body with tapered nose and tail
+    mb:material("metal"):color(pr * 1.6, pg * 1.6, pb * 1.6)
+    mb:hexa({ { -2.15, 0.32, -0.8 }, { 2.15, 0.32, -0.8 }, { 2.15, 0.32, 0.8 }, { -2.15, 0.32, 0.8 },
+              { -2.1, 0.92, -0.82 }, { 2.1, 0.88, -0.82 }, { 2.1, 0.88, 0.82 }, { -2.1, 0.92, 0.82 } })
+    -- hood / trunk tops slightly lower
+    mb:hexa({ { 0.8, 0.88, -0.78 }, { 2.1, 0.86, -0.78 }, { 2.1, 0.86, 0.78 }, { 0.8, 0.88, 0.78 },
+              { 0.8, 0.98, -0.76 }, { 2.05, 0.93, -0.74 }, { 2.05, 0.93, 0.74 }, { 0.8, 0.98, 0.76 } })
+    -- greenhouse: sloped windshield & rear window
+    mb:hexa({ { -1.35, 0.92, -0.78 }, { 0.85, 0.92, -0.78 }, { 0.85, 0.92, 0.78 }, { -1.35, 0.92, 0.78 },
+              { -0.95, 1.45, -0.68 }, { 0.25, 1.45, -0.68 }, { 0.25, 1.45, 0.68 }, { -0.95, 1.45, 0.68 } })
+    mb:material("window"):color(0.65, 0.72, 0.8)
+    mb:quad(0.86, 0.95, 0.72, 0.86, 0.95, -0.72, 0.27, 1.42, -0.64, 0.27, 1.42, 0.64)
+    mb:quad(-1.36, 0.95, -0.72, -1.36, 0.95, 0.72, -0.97, 1.42, 0.64, -0.97, 1.42, -0.64)
+    for _, sd in ipairs({ -1, 1 }) do
+        local zz = sd * 0.785
+        if sd < 0 then mb:quad(-1.15, 0.97, zz, 0.7, 0.97, zz, 0.2, 1.4, zz + 0.09, -0.85, 1.4, zz + 0.09)
+        else mb:quad(0.7, 0.97, zz, -1.15, 0.97, zz, -0.85, 1.4, zz - 0.09, 0.2, 1.4, zz - 0.09) end
     end
-    ctx:collider(-2.1, 0, -0.9, 2.1, 1.5, 0.9)
+    -- bumpers, lights, rust
+    mb:material("steel"):color(0.8, 0.8, 0.8)
+    mb:box(2.1, 0.38, -0.85, 2.25, 0.5, 0.85)
+    mb:box(-2.25, 0.38, -0.85, -2.1, 0.5, 0.85)
+    mb:material("white"):color(0.9, 0.9, 0.75)
+    mb:cylinderX(2.1, 2.16, 0.72, -0.6, 0.09, 0.09, 7)
+    mb:cylinderX(2.1, 2.16, 0.72, 0.6, 0.09, 0.09, 7)
+    mb:material("cloth_red"):color(1, 0.6, 0.6)
+    mb:box(-2.13, 0.65, -0.75, -2.1, 0.78, -0.5)
+    mb:box(-2.13, 0.65, 0.5, -2.1, 0.78, 0.75)
+    mb:material("rust"):color(0.7, 0.5, 0.4)
+    mb:quad(-1.6, 0.35, 0.805, -0.6, 0.35, 0.805, -0.7, 0.6, 0.805, -1.5, 0.55, 0.805)
+    mb:quad(1.6, 0.35, -0.805, 0.8, 0.35, -0.805, 0.9, 0.55, -0.805, 1.5, 0.62, -0.805)
+    -- wheels in dark arches
+    mb:material("metal"):color(0.12, 0.12, 0.12)
+    for _, wx in ipairs({ 1.35, -1.35 }) do
+        mb:box(wx - 0.42, 0.3, -0.81, wx + 0.42, 0.72, -0.79)
+        mb:box(wx - 0.42, 0.3, 0.79, wx + 0.42, 0.72, 0.81)
+    end
+    for _, wx in ipairs({ 1.35, -1.35 }) do
+        wheel(mb, wx, 0.32, -0.72, 0.32, 0.2, -1, false)
+        wheel(mb, wx, 0.32, 0.72, 0.32, 0.2, 1, false)
+    end
+    mb:material("snow"):color(0.95, 0.97, 1)
+    mb:box(-0.9, 1.45, -0.62, 0.2, 1.52, 0.62)
+    mb:box(1.0, 0.97, -0.6, 1.9, 1.0, 0.6)
+    ctx:collider(-2.2, 0, -0.85, 2.2, 1.45, 0.85)
     mb:pop()
 end
 
--- burned out tank hulk (Soviet style)
+-- knocked-out Soviet medium tank
 function Props.tankWreck(ctx, x, z, rot, turretOff)
     local mb = ctx.mb
     mb:push() mb:translate(x, 0, z) mb:rotateY(rot or 0)
-    ctx:mat("rust", 0.55, 0.5, 0.48)
-    mb:hexa({ { -3.0, 0.45, -1.4 }, { 2.6, 0.45, -1.4 }, { 2.6, 0.45, 1.4 }, { -3.0, 0.45, 1.4 },
-              { -2.9, 1.7, -1.5 }, { 1.6, 1.7, -1.5 }, { 1.6, 1.7, 1.5 }, { -2.9, 1.7, 1.5 } })
-    ctx:mat("tread", 0.45, 0.42, 0.4)
-    mb:box(-3.1, 0, -1.6, 3.0, 0.9, -1.15)
-    mb:box(-3.1, 0, 1.15, 3.0, 0.9, 1.6)
+    mb.maxEdge = 1.2
+    mb:material("rust"):color(0.55, 0.5, 0.46)
+    mb:hexa({ { -3.0, 0.45, -1.35 }, { 2.4, 0.45, -1.35 }, { 2.4, 0.45, 1.35 }, { -3.0, 0.45, 1.35 },
+              { -2.9, 1.65, -1.5 }, { 1.4, 1.65, -1.5 }, { 1.4, 1.65, 1.5 }, { -2.9, 1.65, 1.5 } })
+    mb:hexa({ { 2.4, 0.45, -1.35 }, { 3.1, 0.9, -1.35 }, { 3.1, 0.9, 1.35 }, { 2.4, 0.45, 1.35 },
+              { 1.4, 1.65, -1.5 }, { 1.45, 1.65, -1.5 }, { 1.45, 1.65, 1.5 }, { 1.4, 1.65, 1.5 } })
+    mb.maxEdge = nil
+    mb:material("tread"):color(0.4, 0.37, 0.35)
+    for _, sd in ipairs({ -1, 1 }) do
+        local z0, z1 = sd * 1.35, sd * 1.62
+        if sd < 0 then z0, z1 = z1, z0 end
+        mb:box(-3.2, 0.0, z0, 3.1, 0.12, z1)
+        if sd > 0 then mb:box(-3.2, 1.05, z0, 3.1, 1.15, z1) end
+        mb:material("rust"):color(0.45, 0.4, 0.37)
+        for i = 0, 4 do mb:cylinderZ(z0 + 0.03, z1 - 0.03, -2.4 + i * 1.2, 0.55, 0.52, 9) end
+        mb:material("tread"):color(0.4, 0.37, 0.35)
+    end
+    -- thrown track lying beside the hull
+    mb:box(-3.0, 0.0, -2.6, 2.5, 0.08, -2.05)
+    mb:material("rust"):color(0.32, 0.27, 0.24)
+    mb:quad(1.0, 1.66, -0.4, 1.4, 1.66, -0.4, 1.4, 1.66, 0.2, 1.0, 1.66, 0.2)
     if not turretOff then
-        ctx:mat("rust", 0.5, 0.45, 0.42)
-        mb:push() mb:translate(-0.3, 1.7, 0) mb:rotateY(0.6)
-        mb:cylinder(0, 0, 0, 1.1, 0.75, 0.9, 7)
-        mb:cylinderX(0.8, 3.6, 0.45, 0, 0.08, 0.07, 5)
+        mb:material("rust"):color(0.5, 0.45, 0.42)
+        mb:push() mb:translate(-0.2, 1.65, 0) mb:rotateY(0.6)
+        mb:cylinder(0, 0, 0, 1.35, 0.85, 1.05, 10)
+        mb:cylinder(-0.4, 0.85, -0.5, 0.35, 1.05, 0.33, 8)
+        mb:cylinderX(1.1, 4.6, 0.45, 0, 0.1, 0.085, 7)
         mb:pop()
     else
-        ctx:mat("rust", 0.5, 0.45, 0.42)
-        mb:push() mb:translate(3.8, 0.4, 2.4) mb:rotateZ(2.4) mb:rotateY(0.4)
-        mb:cylinder(0, 0, 0, 1.1, 0.75, 0.9, 7)
+        mb:material("rust"):color(0.5, 0.45, 0.42)
+        mb:push() mb:translate(3.8, 0.5, 2.6) mb:rotateZ(2.5) mb:rotateY(0.4)
+        mb:cylinder(0, 0, 0, 1.35, 0.85, 1.05, 10)
+        mb:cylinderX(1.0, 3.6, 0.45, 0, 0.1, 0.085, 7)
         mb:pop()
+        mb:material("metal"):color(0.15, 0.13, 0.12)
+        mb:cylinder(-0.2, 1.64, 0, 1.0, 1.66, 1.0, 10)
     end
-    ctx:mat("snow", 1, 1, 1)
-    mb:box(-2.9, 1.7, -1.4, -1.4, 1.78, 1.4)
-    mb:pop()
-    mb:push() mb:translate(x, 0, z) mb:rotateY(rot or 0)
-    ctx:collider(-3.1, 0, -1.6, 3.0, 1.8, 1.6)
+    mb:material("snow"):color(0.95, 0.97, 1)
+    mb:box(-2.8, 1.65, -1.3, -1.5, 1.72, 1.3)
+    mb:box(1.42, 1.0, -1.2, 2.6, 1.05, 1.2)
+    ctx:collider(-3.2, 0, -1.65, 3.1, 1.8, 1.65)
     mb:pop()
 end
 
@@ -396,7 +510,9 @@ function Props.house(ctx, w, d, opts, rng)
         mb:box(x1 - 1.4, top, z1 - 1.6, x1 - 0.9, top + 2.3, z1 - 1.1)
         local wx0, wy0, wz0 = ctx:worldBox(x0, 0, z0, x1, top, z1)
         local wa, wb, wc, wd, we, wf = ctx:worldBox(x0, 0, z0, x1, top, z1)
-        world().shelters[#world().shelters + 1] = { wa, wb, wc, wd, we, wf }
+        local entry = { wa, wb, wc, wd, we, wf }
+        world().shelters[#world().shelters + 1] = entry
+        if ctx.obj then ctx.obj.shelter = entry end
     else
         -- rubble inside
         ctx:mat("rubble", 0.8, 0.8, 0.8)

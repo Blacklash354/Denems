@@ -241,6 +241,7 @@ local function registerWorld()
         d.box.door = true
         I.add({ space = "exterior", pos = { cx, d.y + 1.1, cz }, radius = math.max(0.7, d.width / 2), range = 2.6,
                 hold = function() return d.transition and 0.6 or nil end,
+                enabled = function() return not (d.obj and not d.obj.alive) end,
                 prompt = function()
                     if d.transition then return d.transition.inside and "ENTER BUNKER" or "EXIT BUNKER" end
                     if d.locked and not d.unlocked then
@@ -576,6 +577,20 @@ end
 local function updateEmitters(dt)
     local W = G.world
     local cam = G.camera
+    for i = #W.emitters, 1, -1 do
+        local e = W.emitters[i]
+        if e.life then
+            e.life = e.life - dt
+            if e.life <= 0 then table.remove(W.emitters, i) end
+        end
+    end
+    for i = #W.staticLights, 1, -1 do
+        local l = W.staticLights[i]
+        if l.life then
+            l.life = l.life - dt
+            if l.life <= 0 then table.remove(W.staticLights, i) end
+        end
+    end
     for _, e in ipairs(W.emitters) do
         local d = U.dist2(cam.x, cam.z, e.x, e.z)
         if d < 300 then
@@ -584,6 +599,7 @@ local function updateEmitters(dt)
                 e.acc = e.acc - 1
                 if e.kind == "fire" then G.effects.fire(e.x, e.y, e.z, 0.7)
                 elseif e.kind == "chimney" then G.effects.smoke(e.x, e.y, e.z, 3, 0.18, 0.18, 0.2, 14)
+                elseif e.kind == "blacksmoke" then G.effects.smoke(e.x, e.y, e.z, 1.2, 0.1, 0.1, 0.11, 6)
                 elseif e.kind == "steam" then G.effects.smoke(e.x + (math.random() - 0.5) * 20, e.y, e.z + (math.random() - 0.5) * 20, 8, 0.7, 0.72, 0.75, 12)
                 end
             end
@@ -702,7 +718,7 @@ function Game.drawWorld()
     G.effects.drawDecals()
     -- doors
     for i, d in ipairs(W.doors) do
-        if R.visible(d.x, d.y + 1, d.z, 3) then
+        if not (d.obj and not d.obj.alive) and R.visible(d.x, d.y + 1, d.z, 3) then
             local m = M3.trsYaw(d.x, d.y, d.z, d.yaw - d.angle * 1.65, 1, doorMat[i] or {})
             doorMat[i] = m
             R.drawModel(doorModel(d), m, { interior = (d.interior or W.isUnderground(d.x, d.y + 1, d.z)) and 1 or 0 })
@@ -746,6 +762,7 @@ function Game.drawWorld()
     G.humans.draw()
     if not G.environment.underground then G.ambience.draw() end
     G.effects.drawCasings()
+    G.effects.drawDebris()
     G.effects.drawParticles()
     G.weather.draw()
     if G.player.mode ~= "dead" and not Game.menuMode then G.weapons.drawViewmodel() end

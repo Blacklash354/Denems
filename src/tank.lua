@@ -237,7 +237,12 @@ function T.update(dt)
     for _, off in ipairs({ -2.5, 0, 2.5 }) do
         local cx, cz = nx + c * off, nz + s * off
         local px, pz, hit, box = P.circlePush({ W.staticSet }, cx, T.y, cz, 2.0, 0.7, 3.0)
-        if hit then
+        local crushed = false
+        if hit and box and box.obj and G.destruction then
+            crushed = G.destruction.ram(box.obj, math.abs(T.speed))
+            if crushed and G.camera and G.player.frameName == "tank" then G.camera.shake(0.25) end
+        end
+        if hit and not crushed then
             nx, nz = nx + px, nz + pz
             totalPush = totalPush + math.sqrt(px * px + pz * pz)
         end
@@ -590,7 +595,8 @@ function T.draw(cam)
     R.drawModel(m.mgExt, mgM, dparams)
     -- interior only when the camera is close
     local d = U.dist3(cam.x, cam.y, cam.z, T.x, T.y + 1.5, T.z)
-    if d < 14 then
+    local chase = G.stations and G.stations.driver.third and G.player.station == G.stations.driver
+    if d < 14 and not chase then
         local ip = { interior = 1 }
         R.drawModel(m.hullInt, tankM, ip)
         R.drawModel(m.turretInt, turM, ip)

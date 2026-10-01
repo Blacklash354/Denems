@@ -60,6 +60,7 @@ local function door(ctx, lx, ly, lz, rotLocal, width, height, opts)
     local t = 0.12
     d.box = { math.min(x, ex) - t, y, math.min(z, ez) - t, math.max(x, ex) + t, y + d.height, math.max(z, ez) + t, walk = false }
     if not d.transition then W.colliders:add(d.box) end
+    d.obj = ctx.obj
     W.doors[#W.doors + 1] = d
     return d
 end
@@ -123,7 +124,7 @@ end
 G.campfire = campfire
 
 local function tent(cx, cz, yaw, w, l, h, mat, tint)
-    local c = W.ctx(cx, cz, yaw)
+    local c = W.dctx(cx, cz, yaw, "cloth", 35, { crush = true })
     c:mat(mat or "cloth", tint and tint[1] or 0.55, tint and tint[2] or 0.55, tint and tint[3] or 0.42)
     w, l, h = w or 2.2, l or 2.8, h or 1.6
     c.mb:hexa({ { -l / 2, 0, -w / 2 }, { l / 2, 0, -w / 2 }, { l / 2, 0, w / 2 }, { -l / 2, 0, w / 2 },
@@ -139,13 +140,19 @@ local function tent(cx, cz, yaw, w, l, h, mat, tint)
 end
 G.tent = tent
 
+-- destructible object contexts
+local function V(x, z, rot) return (W.dctx(x, z, rot, "vehicle", 380, {})) end
+local function TW(x, z, rot) return (W.dctx(x, z, rot, "metal", 650, {})) end
+local function DW(x, z, rot) return (W.dctx(x, z, rot, "wood", 45, { crush = true })) end
+local function DM(x, z, rot) return (W.dctx(x, z, rot, "metal", 120, { crush = true })) end
+
 local function spawn(x, z, kind, count, loc, opts)
     W.spawns[#W.spawns + 1] = { x = x, z = z, kind = kind, count = count or 1, loc = loc, y = opts and opts.y,
                                 underground = opts and opts.underground, radius = opts and opts.radius or 25 }
 end
 
 local function placeHouse(x, z, rot, w, d, opts, lootKind)
-    local ctx = W.ctx(x, z, rot)
+    local ctx = W.dctx(x, z, rot, "building", 900)
     local info = Props.house(ctx, w, d, opts, rng)
     if not (opts and opts.noLoot) then
         local c = container(ctx, -w / 2 + 0.45, 0.25, -d / 2 + d * 0.3, lootKind or "house", "CUPBOARD")
@@ -195,7 +202,7 @@ local function roadPoles(road, spacing, offset)
             local t = k / n
             local x, z = a[1] + dx * t + nx * offset, a[2] + dz * t + nz * offset
             if math.abs(x - W.riverX(z)) > 16 then
-                local ctx = W.ctx(x, z, math.atan2(dz, dx))
+                local ctx = W.dctx(x, z, math.atan2(dz, dx), "wood", 40, { crush = true })
                 if rng:next() > 0.12 then Props.pole(ctx, 0, 0, 0)
                 else
                     -- fallen pole
@@ -283,8 +290,8 @@ local function buildCamp()
                  { -1.0, 2.45, -1.4 }, { 2.0, 2.45, -1.4 }, { 2.0, 2.45, 1.2 }, { -1.0, 2.45, 1.2 } })
     G.light(st, 0.5, 1.9, 0, 1.0, 0.75, 0.4, 6, 0.9, true)
     Props.barrel(W.ctx(L.x - 4, L.z - 6, 0), 0, 0, 0, true)
-    Props.fence(W.ctx(L.x, L.z + 14, 0), -10, 0, 10, 0, 1.1)
-    Props.car(W.ctx(L.x - 14, L.z - 2, 1.2), 0, 0, 0)
+    Props.fence(DW(L.x, L.z + 14, 0), -10, 0, 10, 0, 1.1)
+    Props.car(V(L.x - 14, L.z - 2, 1.2), 0, 0, 0)
     pickup(W.ctx(L.x - 3, L.z + 8, 0), 0, 0, 0, "water", 2, "foodbox")
     -- people
     local function sitAt(a, name, key)
@@ -324,15 +331,15 @@ local function buildVillage()
     s:beam(9, 0.9, -10, 9, 2.6, -10, 0.12) s:beam(11, 0.9, -10, 11, 2.6, -10, 0.12) s:beam(8.8, 2.6, -10, 11.2, 2.6, -10, 0.12)
     Props.billboard(s, 22, -22, -pi / 2, "cloth_red", 5, 3)
     Props.banner(W.ctx(-238, 283, pi), 0, 3.0, -4.2, pi / 2, 1.8, 2.6)
-    Props.truck(W.ctx(-140, 302, 0.25), 0, 0, 0, true)
-    Props.car(W.ctx(-232, 297, 0), 0, 0, 2.9)
+    Props.truck(V(-140, 302, 0.25), 0, 0, 0, true)
+    Props.car(V(-232, 297, 0), 0, 0, 2.9)
     fireBarrel(W.ctx(-166, 309, 0), 0, 0)
     -- fences
     for i = 1, #houseX - 1 do
         local f = W.ctx(houseX[i], 0, 0)
     end
     for _, x in ipairs({ -270, -245, -200, -160, -120 }) do
-        local f = W.ctx(x, 330, 0)
+        local f = DW(x, 330, 0)
         Props.fence(f, -8, 0, 8, 0, 1.2)
     end
     -- loot pickups
@@ -420,8 +427,8 @@ local function buildIndustrial()
     pp:mat("rust", 0.65, 0.55, 0.45)
     pp.mb:cylinderX(-42, 42, 3.6, 0, 0.5, 0.5, 7)
     pp.mb:cylinderX(-42, 42, 3.6, 1.3, 0.35, 0.35, 6)
-    Props.truck(W.ctx(-250, -5, 1.7), 0, 0, 0, true)
-    Props.tankWreck(W.ctx(-180, -30, 0.4), 0, 0, 0, true)
+    Props.truck(V(-250, -5, 1.7), 0, 0, 0, true)
+    Props.tankWreck(TW(-180, -30, 0.4), 0, 0, 0, true)
     container(W.ctx(-180, -30, 0.4), 0, 1.0, 1.7, "wreck", "WRECKAGE")
     W.radZones[#W.radZones + 1] = { x = -305, z = -62, r = 22, strength = 1.6 }
     W.radZones[#W.radZones + 1] = { x = -240, z = 45, r = 14, strength = 1.2 }
@@ -433,35 +440,51 @@ end
 local function buildCheckpoint()
     local cx, cz = 20, 95
     local c = W.ctx(cx, cz, 0)
+    local function piece(kind, hp, opts) return (W.dctx(cx, cz, 0, kind, hp, opts)) end
     -- barrier poles across road (road runs roughly north-south)
-    c:mat("hazard", 1, 1, 1)
-    c:box(-6, 1.0, -0.1, -1, 1.15, 0.1)
-    c:box(1.5, 1.0, -0.1, 6, 1.15, 0.1)
-    c:mat("concrete", 0.7, 0.7, 0.7)
-    c:solid(-6.5, 0, -0.3, -6, 1.2, 0.3)
-    c:solid(6, 0, -0.3, 6.5, 1.2, 0.3)
+    for _, x in ipairs({ { -6, -1 }, { 1.5, 6 } }) do
+        local bp = piece("wood", 40, { crush = true })
+        bp:mat("hazard", 1, 1, 1)
+        bp:solid(x[1], 1.0, -0.1, x[2], 1.15, 0.1)
+        bp:mat("metal", 0.4, 0.4, 0.4)
+        bp:box(x[1] + 0.1, 0, -0.06, x[1] + 0.22, 1.0, 0.06)
+    end
+    for _, x in ipairs({ -6.5, 6 }) do
+        local post = piece("stone", 300)
+        post:mat("concrete", 0.7, 0.7, 0.7)
+        post:solid(x, 0, -0.3, x + 0.5, 1.2, 0.3)
+    end
     -- guard booth
-    local b = W.ctx(cx + 11, cz + 3, -pi / 2)
+    local b = W.dctx(cx + 11, cz + 3, -pi / 2, "building", 450)
     Props.house(b, 3.2, 3.2, { h = 2.5, empty = true, mat = "wood" }, rng)
     container(b, -1.1, 0.25, 0.6, "military", "LOCKER")
     pickup(b, 0.6, 0.25, 0.9, "ap_shell", 2, "shellcrate")
     -- sandbags & blocks
-    Props.sandbags(c, -14, -6, -8, -6, 1.1)
-    Props.sandbags(c, 8, -8, 14, -8, 1.1)
-    Props.sandbags(c, -14, -6, -14, 0, 1.1)
+    Props.sandbags(piece("stone", 220, { crush = true }), -14, -6, -8, -6, 1.1)
+    Props.sandbags(piece("stone", 220, { crush = true }), 8, -8, 14, -8, 1.1)
+    Props.sandbags(piece("stone", 220, { crush = true }), -14, -6, -14, 0, 1.1)
     for i = -2, 2 do
-        c:mat("concrete", 0.65, 0.65, 0.65)
-        c:solid(-9 + i * 0.1, 0, 8 + i * 2.2, -7.8, 1.0, 9.6 + i * 2.2)
+        local blk = piece("stone", 350)
+        blk:mat("concrete", 0.65, 0.65, 0.65)
+        blk:solid(-9 + i * 0.1, 0, 8 + i * 2.2, -7.8, 1.0, 9.6 + i * 2.2)
     end
-    for i = 0, 3 do Props.hedgehog(c, -18 + i * 3.2, 14 + (i % 2) * 2) end
-    for i = 0, 3 do Props.hedgehog(c, 12 + i * 3.2, 15 + (i % 2) * 2) end
-    Props.watchtower(c, -13, 6)
-    Props.sign(c, 7, -12, pi / 2, "sign")
-    Props.sign(c, -7, 12, -pi / 2, "sign")
-    Props.truck(W.ctx(cx - 11, cz - 24, 1.3), 0, 0, 0, true)
-    Props.tankWreck(W.ctx(cx + 16, cz - 26, -0.4), 0, 0, 0, false)
+    for i = 0, 3 do Props.hedgehog(piece("metal", 160), -18 + i * 3.2, 14 + (i % 2) * 2) end
+    for i = 0, 3 do Props.hedgehog(piece("metal", 160), 12 + i * 3.2, 15 + (i % 2) * 2) end
+    Props.watchtower(piece("wood", 260), -13, 6)
+    Props.sign(piece("wood", 40, { crush = true }), 7, -12, pi / 2, "sign")
+    Props.sign(piece("wood", 40, { crush = true }), -7, 12, -pi / 2, "sign")
+    -- crates and planks lying around the post
+    for i = 1, 5 do
+        local cr = piece("wood", 50, { crush = true })
+        Props.crate(cr, -4 + i * 1.9, 0, -9 - (i % 2) * 1.2, 0.8 + (i % 3) * 0.15)
+    end
+    local planks = piece("wood", 60, { crush = true })
+    planks:mat("wood", 0.6, 0.5, 0.42)
+    for i = 0, 4 do planks:solid(-12 + i * 0.05, i * 0.12, 4 - 1.4, -9.5, i * 0.12 + 0.1, 4 + 1.4) end
+    Props.truck(V(cx - 11, cz - 24, 1.3), 0, 0, 0, true)
+    Props.tankWreck(TW(cx + 16, cz - 26, -0.4), 0, 0, 0, false)
     container(W.ctx(cx + 16, cz - 26, -0.4), -2.0, 0.6, 2.0, "wreck", "WRECKAGE")
-    Props.truck(W.ctx(cx - 18, cz + 22, -0.2), 0, 0, 0, false)
+    Props.truck(V(cx - 18, cz + 22, -0.2), 0, 0, 0, false)
     container(W.ctx(cx - 18, cz + 22, -0.2), -1, 1.2, 0, "military", "SUPPLY TRUCK")
     fireBarrel(c, 9, 4)
     tent(cx + 16, cz + 8, 1.3, 2.4, 3.2, 1.7, "cloth", { 0.3, 0.32, 0.28 })
@@ -477,7 +500,7 @@ local function buildForest()
     local L = W.forest
     trees(L.x, L.z, 175, 1100, 0.72, 8)
     -- hunter's cabin
-    local cab = W.ctx(338, 222, -pi / 2)
+    local cab = W.dctx(338, 222, -pi / 2, "building", 800)
     Props.house(cab, 6, 5, { mat = "wood", h = 2.6 }, rng)
     container(cab, 2.2, 0.25, 1.5, "house", "HUNTER'S CHEST").loot = { { "food", 3 }, { "rifle_ammo", 15 }, { "medkit", 1 } }
     pickup(cab, -1.5, 0.25, 1.4, "fuel", 1, "jerrycan")
@@ -511,7 +534,7 @@ local function buildForest()
     bic:mat("concrete", 0.55, 0.55, 0.55)
     bic:box(-21, -6, -5.6, 21, 0.05, -4.9)
     bic:box(-21, -6, 4.9, 21, 0.05, 5.6)
-    Props.car(W.ctx(240, 141, 0.35), 0, 0, 0)
+    Props.car(V(240, 141, 0.35), 0, 0, 0)
     container(W.ctx(240, 141, 0.35), 0, 0.5, 1.0, "wreck", "CAR TRUNK")
     spawn(300, 150, "hound", 2, "forest")
     spawn(360, 230, "hound", 1, "forest")
@@ -531,7 +554,7 @@ local function buildBase()
             local bx, bz = x0 + (x1 - x0) * (i + 1) / n, z0 + (z1 - z0) * (i + 1) / n
             local mx, mz = (ax + bx) / 2, (az + bz) / 2
             if W.roadDistance(mx, mz) > 9 then
-                local c = W.ctx(mx, mz, 0)
+                local c = W.dctx(mx, mz, 0, "stone", 420)
                 Props.concreteWall(c, ax - mx, az - mz, bx - mx, bz - mz, 3.2)
             end
         end
@@ -541,7 +564,7 @@ local function buildBase()
     wallLine(cx + R, cz + R, cx - R, cz + R)
     wallLine(cx - R, cz + R, cx - R, cz - R)
     for _, p in ipairs({ { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } }) do
-        local wc = W.ctx(cx + p[1] * (R - 3), cz + p[2] * (R - 3), 0)
+        local wc = W.dctx(cx + p[1] * (R - 3), cz + p[2] * (R - 3), 0, "wood", 260)
         Props.watchtower(wc, 0, 0)
     end
     -- barracks (west of the road)
@@ -563,9 +586,10 @@ local function buildBase()
     pickup(h2, -8, 0.1, -5, "mg_ammo", 200, "mgbox")
     -- fuel depot
     local fd = W.ctx(cx - 30, cz + 50, 0)
-    Props.fuelTank(fd, 0, 0, 0, 12, 1.8)
-    Props.fuelTank(fd, 0, 7, 0, 12, 1.8)
-    Props.fuelTank(fd, 16, 3, pi / 2, 10, 1.6)
+    for _, t in ipairs({ { 0, 0, 0, 12, 1.8 }, { 0, 7, 0, 12, 1.8 }, { 16, 3, pi / 2, 10, 1.6 } }) do
+        local ft = W.dctx(cx - 30, cz + 50, 0, "metal", 300, { explode = true })
+        Props.fuelTank(ft, t[1], t[2], t[3], t[4], t[5])
+    end
     pickup(fd, -8, 0, -4, "fuel", 1, "jerrycan")
     pickup(fd, -8.8, 0, -3.2, "fuel", 1, "jerrycan")
     W.radZones[#W.radZones + 1] = { x = cx - 5, z = cz + 60, r = 10, strength = 0.8 }
@@ -579,15 +603,15 @@ local function buildBase()
     fpole.mb:cylinder(0, 0, 0, 0.08, 12, 0.06, 5)
     fpole:mat("cloth_red", 1, 1, 1)
     fpole.mb:panel(0.08, 9.5, 0, 0.08, 11.8, 0, 2.6, 11.6, 0.3, 2.6, 9.4, 0.3)
-    Props.truck(W.ctx(cx + 20, cz + 46, 0.2), 0, 0, 0, true)
-    Props.truck(W.ctx(cx + 26, cz + 52, 0.15), 0, 0, 0, false)
+    Props.truck(V(cx + 20, cz + 46, 0.2), 0, 0, 0, true)
+    Props.truck(V(cx + 26, cz + 52, 0.15), 0, 0, 0, false)
     fireBarrel(W.ctx(cx + 5, cz + 30, 0), 0, 0)
     npc(cx + 6.5, cz + 30, "bandit", "sit", "BANDIT", nil, math.pi)
     npc(cx + 3.5, cz + 31, "bandit", "sit", "BANDIT", nil, 0)
     npc(cx + 15, cz - 10, "bandit", "patrol", "BANDIT", nil, 0)
     npc(cx - 20, cz + 25, "bandit", "guard", "BANDIT", nil, 1.5)
     tent(cx + 8, cz + 36, 0.2, 2.4, 3.2, 1.7, "cloth", { 0.3, 0.32, 0.28 })
-    Props.sandbags(W.ctx(cx, cz, 0), 18, 30, 24, 30, 1.1)
+    Props.sandbags(W.dctx(cx, cz, 0, "stone", 220, { crush = true }), 18, 30, 24, 30, 1.1)
 end
 
 local function buildTower()
@@ -618,11 +642,10 @@ local function buildTower()
     container(s, -2.5, 0.25, -1.6, "military", "LOCKER").loot = { { "battery", 2 }, { "antirad", 1 }, { "medkit", 1 } }
     light(s, 0, 2.4, 0, 0.9, 0.7, 0.4, 6, 0.8, true)
     door(s, -0.55, 0.25, -2.5, 0, 1.1, 2.1)
-    local fe = W.ctx(L.x, L.z, 0)
-    Props.fence(fe, -22, -22, 22, -22, 2.2, "metal")
-    Props.fence(fe, 22, -22, 22, 22, 2.2, "metal")
-    Props.fence(fe, -22, 22, -22, -22, 2.2, "metal")
-    Props.truck(W.ctx(L.x - 18, L.z + 30, 2.2), 0, 0, 0, true)
+    Props.fence(DM(L.x, L.z, 0), -22, -22, 22, -22, 2.2, "metal")
+    Props.fence(DM(L.x, L.z, 0), 22, -22, 22, 22, 2.2, "metal")
+    Props.fence(DM(L.x, L.z, 0), -22, 22, -22, -22, 2.2, "metal")
+    Props.truck(V(L.x - 18, L.z + 30, 2.2), 0, 0, 0, true)
     npc(L.x + 6, L.z + 18, "bandit", "patrol", "BANDIT", nil, 0)
     npc(L.x + 20, L.z + 8, "bandit", "guard", "BANDIT", nil, -1.2)
 end
@@ -832,7 +855,7 @@ local function buildPlant()
             local bx0, bz0 = s[1] + (s[3] - s[1]) * (i + 0.85) / n, s[2] + (s[4] - s[2]) * (i + 0.85) / n
             local mx, mz = L.x + (ax0 + bx0) / 2, L.z + (az0 + bz0) / 2
             if W.roadDistance(mx, mz) > 8 and math.abs(mx - W.riverX(mz)) > 14 then
-                local fc = W.ctx(mx, mz, 0)
+                local fc = DM(mx, mz, 0)
                 Props.fence(fc, ax0 + L.x - mx, az0 + L.z - mz, bx0 + L.x - mx, bz0 + L.z - mz, 2.4, "metal")
             end
         end
@@ -845,15 +868,15 @@ local function buildPlant()
         pyl:beam(-4.5, 17, 0, 4.5, 17, 0, 0.3)
         pyl:collider(-3, 0, -3, 3, 24, 3)
     end
-    Props.truck(W.ctx(140, -440, 0.8), 0, 0, 0, true)
-    Props.car(W.ctx(160, -448, 2.0), 0, 0, 0)
-    Props.tankWreck(W.ctx(100, -430, 2.5), 0, 0, 0, false)
+    Props.truck(V(140, -440, 0.8), 0, 0, 0, true)
+    Props.car(V(160, -448, 2.0), 0, 0, 0)
+    Props.tankWreck(TW(100, -430, 2.5), 0, 0, 0, false)
     container(W.ctx(100, -430, 2.5), 2.5, 0.6, 2.0, "wreck", "WRECKAGE")
     fireBarrel(W.ctx(150, -455, 0), 0, 0)
     pickup(W.ctx(165, -452, 0), 0, 0, 0, "antirad", 1, "medkit")
     for i = 1, 4 do
         local sx, sz = 120 + rng:range(-60, 60), -470 + rng:range(-40, 50)
-        Props.sign(W.ctx(sx, sz, 0), 0, 0, rng:range(0, 6), "hazard")
+        Props.sign(DW(sx, sz, 0), 0, 0, rng:range(0, 6), "hazard")
     end
     W.radZones[#W.radZones + 1] = { x = 120, z = -480, r = 75, strength = 2.2 }
     W.radZones[#W.radZones + 1] = { x = 120, z = -480, r = 160, strength = 0.5 }
@@ -943,17 +966,17 @@ local function buildWilderness()
         end
     end
     -- wrecks along the roads
-    Props.tankWreck(W.ctx(80, 205, 2.0), 0, 0, 0, false)
+    Props.tankWreck(TW(80, 205, 2.0), 0, 0, 0, false)
     container(W.ctx(80, 205, 2.0), 0, 1.8, 0, "wreck", "WRECKAGE")
-    Props.tankWreck(W.ctx(-60, -120, 0.9), 0, 0, 0, true)
-    Props.truck(W.ctx(46, 334, -1.4), 0, 0, 0, true)
-    Props.car(W.ctx(60, 512, 1.3), 0, 0, 0)
-    Props.truck(W.ctx(22, -10, -1.6), 0, 0, 0, false)
+    Props.tankWreck(TW(-60, -120, 0.9), 0, 0, 0, true)
+    Props.truck(V(46, 334, -1.4), 0, 0, 0, true)
+    Props.car(V(60, 512, 1.3), 0, 0, 0)
+    Props.truck(V(22, -10, -1.6), 0, 0, 0, false)
     container(W.ctx(22, -10, -1.6), -1, 1.2, 0, "military", "TRUCK BED")
-    Props.billboard(W.ctx(52, 380, pi), 0, 0, 0, "cloth_red", 7, 4)
-    Props.billboard(W.ctx(-15, -60, 0), 0, 0, 0, "star", 5, 4)
-    Props.sign(W.ctx(36, 302, 0), 0, 0, 0, "sign")
-    Props.sign(W.ctx(10, -70, 0), 0, 0, 0, "sign")
+    Props.billboard(DW(52, 380, pi), 0, 0, 0, "cloth_red", 7, 4)
+    Props.billboard(DW(-15, -60, 0), 0, 0, 0, "star", 5, 4)
+    Props.sign(DW(36, 302, 0), 0, 0, 0, "sign")
+    Props.sign(DW(10, -70, 0), 0, 0, 0, "sign")
     -- crater with radiation
     W.radZones[#W.radZones + 1] = { x = 140, z = 40, r = 18, strength = 1.0 }
     -- roaming hounds

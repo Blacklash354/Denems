@@ -60,7 +60,7 @@ function Wt.draw()
     R.send(sh, "density", 0.3 + Wt.intensity * 0.7)
     R.send(sh, "flipY", -1)
     local cx, cy, cz = cam.x, cam.y, cam.z
-    local inTank = pl.frameName == "tank"
+    local inTank = pl.frameName == "tank" and not (G.stations and G.stations.driver.third and pl.station == G.stations.driver)
     local inBuilding = not inTank and G.world.inShelter(cx, cy, cz)
     R.send(sh, "shelter", (inTank or inBuilding) and 1 or 0)
     R.send(sh, "shelterRadius", inBuilding and 9 or 2.5)

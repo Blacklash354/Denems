@@ -406,6 +406,76 @@ function MB:build()
     return model
 end
 
+-- raw per-material vertex data (kept so destructible objects can be re-batched later)
+function MB:buildRaw()
+    local raw = {}
+    local size = ffi.sizeof("psx_vertex")
+    for name, g in pairs(self.groups) do
+        if g.n > 0 then
+            local data = love.data.newByteData(g.n * size)
+            local p = ffi.cast("psx_vertex*", data:getFFIPointer())
+            local v = g.v
+            for i = 0, g.n - 1 do
+                local k = i * 12
+                local q = p[i]
+                q.x, q.y, q.z, q.u, q.v = v[k + 1], v[k + 2], v[k + 3], v[k + 4], v[k + 5]
+                q.nx, q.ny, q.nz = v[k + 6], v[k + 7], v[k + 8]
+                local r, gg, b, a = v[k + 9], v[k + 10], v[k + 11], v[k + 12]
+                q.r = r >= 1 and 255 or (r <= 0 and 0 or floor(r * 255))
+                q.g = gg >= 1 and 255 or (gg <= 0 and 0 or floor(gg * 255))
+                q.b = b >= 1 and 255 or (b <= 0 and 0 or floor(b * 255))
+                q.a = a >= 1 and 255 or (a <= 0 and 0 or floor(a * 255))
+            end
+            raw[name] = { data = data, n = g.n }
+        end
+    end
+    return raw, self.bounds
+end
+
+-- multiply the vertex colours of raw data (used to char burnt-out objects)
+function MB.tintRaw(raw, k)
+    for _, r in pairs(raw) do
+        local p = ffi.cast("psx_vertex*", r.data:getFFIPointer())
+        for i = 0, r.n - 1 do
+            local q = p[i]
+            q.r, q.g, q.b = floor(q.r * k), floor(q.g * k), floor(q.b * k * 0.95)
+        end
+    end
+end
+
+-- merge several raw sets into one model (one mesh per material)
+function MB.mergeRaw(list)
+    local size = ffi.sizeof("psx_vertex")
+    local counts = {}
+    for _, raw in ipairs(list) do
+        for name, r in pairs(raw) do counts[name] = (counts[name] or 0) + r.n end
+    end
+    local model = { parts = {}, tris = 0, radius = 0 }
+    local names = {}
+    for name in pairs(counts) do names[#names + 1] = name end
+    table.sort(names)
+    for _, name in ipairs(names) do
+        local n = counts[name]
+        local data = love.data.newByteData(n * size)
+        local dst = ffi.cast("uint8_t*", data:getFFIPointer())
+        local off = 0
+        for _, raw in ipairs(list) do
+            local r = raw[name]
+            if r then
+                ffi.copy(dst + off, r.data:getFFIPointer(), r.n * size)
+                off = off + r.n * size
+            end
+        end
+        local mesh = love.graphics.newMesh(FORMAT, n, "triangles", "static")
+        mesh:setVertices(data)
+        local tex = Textures.get(name:match("^[^#]+"))
+        mesh:setTexture(tex)
+        model.parts[#model.parts + 1] = { mesh = mesh, tex = tex, mat = name }
+        model.tris = model.tris + n / 3
+    end
+    return model
+end
+
 function MB:isEmpty()
     for _, g in pairs(self.groups) do if g.n > 0 then return false end end
     return true

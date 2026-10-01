@@ -342,6 +342,23 @@ local function build()
         for i = 0, n - 1 do sd:setSample(i, U.clamp(buf[i] * 0.6, -1, 1)) end
         S.guitar = sd
     end
+    do
+        local lp = lowpass(1800)
+        S.wood_break = gen(0.9, function(t)
+            local s = 0
+            for _, c in ipairs({ 0, 0.05, 0.12, 0.2, 0.32 }) do
+                local d = t - c
+                if d > 0 then s = s + noise() * exp(-d * 35) + sin(TAU * (180 + c * 400) * d) * exp(-d * 25) * 0.5 end
+            end
+            return lp(s) * 0.9
+        end)
+        local lp2, lp3 = lowpass(400), lowpass(1500)
+        S.collapse = gen(3.5, function(t)
+            local rumble = lp2(noise()) * 4 * env(t, 0.1, 1.2)
+            local crack = (random() < 0.02 * exp(-t) and 1 or 0) * noise() * 2
+            return rumble + lp3(crack + noise() * 0.4 * exp(-t * 0.8))
+        end)
+    end
     S.radar_ping = gen(0.6, function(t) return sin(TAU * 1250 * t) * exp(-t * 7) * 0.35 + sin(TAU * 1250 * (t - 0.15)) * (t > 0.15 and exp(-(t - 0.15) * 7) or 0) * 0.25 end)
     S.notify = gen(0.25, function(t) return sin(TAU * 880 * t) * exp(-t * 18) * 0.3 end)
     -- radio voice syllables

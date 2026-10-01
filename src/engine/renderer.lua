@@ -6,9 +6,9 @@ local R = {}
 local lg = love.graphics
 
 R.qualities = {
-    { name = "LOW", w = 320, h = 180, drawDist = 170 },
-    { name = "MEDIUM", w = 426, h = 240, drawDist = 210 },
-    { name = "HIGH", w = 560, h = 315, drawDist = 260 },
+    { name = "LOW", w = 480, h = 270, drawDist = 170 },
+    { name = "MEDIUM", w = 640, h = 360, drawDist = 220 },
+    { name = "HIGH", w = 960, h = 540, drawDist = 270 },
 }
 
 local identity = M3.identity()
@@ -31,7 +31,7 @@ function R.init(quality)
     R.lights = {}
     R.time = 0
     R.stats = { draws = 0, tris = 0 }
-    R.fx = { grain = 0.05, aberration = 0.6, levels = 30, tint = { 0, 0, 0, 0 }, frost = 0, radiation = 0,
+    R.fx = { grain = 0.025, aberration = 0.4, levels = 40, tint = { 0, 0, 0, 0 }, frost = 0, radiation = 0,
              optic = 0, blur = 0, brightness = 1 }
     R.env = {
         fogColor = { 0.45, 0.47, 0.52 }, fogStart = 15, fogEnd = 170,

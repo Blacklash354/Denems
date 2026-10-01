@@ -28,7 +28,7 @@ Requires LÖVE 11.4 or newer (tested on 11.5). The first launch takes a few seco
 | Pause | `Esc` |
 | FPS / draw-call counter | `F3` |
 
-**Driver seat:** `W/S` throttle, `A/D` steer (tracks pivot), `Space` brake, `F` engine, `L` headlights.
+**Driver seat:** `W/S` throttle, `A/D` steer (tracks pivot), `Space` brake, `F` engine, `L` headlights, `V` toggles a third-person chase camera (mouse orbits it).
 **Gunner seat:** mouse or `WASD` traverses the turret and elevates the gun, `RMB` optic, wheel zoom,
 `R` loads a shell from the racks, `T`/`1`/`2` choose AP or HE, `LMB` fires.
 **Bow MG:** mouse aims, `LMB` fires (watch the heat), `R` loads a new belt from storage.
@@ -58,6 +58,16 @@ keep their distance while firing bursts, and run when your tank rolls in. Bodies
 Mutants only live in their lairs: the forest by the river, the factory, the bunker and the nuclear plant.
 Anomalies (electric discharges and gravitational vortexes) crackle in a few places; a detector beeps as you get close.
 
+## Destruction
+
+Most man-made objects in the world are real destructible objects with their own hit points and
+material: checkpoint barrier poles, crates, plank stacks, sandbags, concrete blocks, steel hedgehogs,
+fences, watchtowers, tents, signs, vehicles and whole houses. Rifle, SMG and hull-MG bullets chip
+away at them (wood and cloth go fast, steel slowly, concrete barely); cannon shells and explosions
+take out much more. A destroyed object loses its collision, throws physical debris and a dust cloud,
+houses collapse into a rubble mound with wall stubs, vehicles are burnt out with fire and black smoke,
+and fuel tanks explode. The tank flattens poles, fences, crates and sandbags when driving through them.
+
 ## Radar and compass
 
 The tank carries a radar: a live green scope on the left sponson inside the hull, mirrored on the HUD whenever
@@ -84,6 +94,7 @@ src/engine/            math3d (frames/matrices), meshbuilder (procedural low-pol
 src/world.lua          heightfield terrain, chunked static geometry, colliders, queries
 src/world_gen.lua      all eight locations, roads, forest, loot, doors, tile-based interiors
 src/props.lua          modular buildings and props (houses, halls, hangars, towers, wrecks, trees...)
+src/destruction.lua    destructible objects: damage, collapse, ruins, debris
 src/tank*.lua          tank model, interior, physics/damage, driver / gunner / MG stations
 src/player.lua         first-person controller (world or tank-local frame), ladders, seats
 src/interaction.lua    reusable interactable components ([E] prompts, hold-to-use)
