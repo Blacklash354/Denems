@@ -211,7 +211,7 @@ end
 
 local function itemPrompt(p)
     local def = Inv.ITEMS[p.item]
-    if p.item == "ap_shell" or p.item == "he_shell" or p.item == "mg_ammo" or p.item == "rifle_ammo" then
+    if p.item == "ap_shell" or p.item == "he_shell" or p.item == "mg_ammo" or p.item == "rifle_ammo" or p.item == "shotgun_ammo" then
         return "TAKE AMMO (" .. def.name .. (p.count > 1 and (" x" .. p.count) or "") .. ")"
     end
     return "PICK UP " .. def.name .. (p.count > 1 and (" x" .. p.count) or "")
@@ -796,7 +796,7 @@ function Game.drawHelp(a)
     local UI = G.ui
     local lines = {
         "WASD MOVE   SHIFT SPRINT   C CROUCH   SPACE JUMP   E INTERACT / LEAVE SEAT",
-        "F FLASHLIGHT   LMB FIRE   RMB AIM   R RELOAD   1/2/3 OR WHEEL WEAPONS   TAB INVENTORY   M MAP",
+        "F FLASHLIGHT   LMB FIRE   RMB AIM   R RELOAD   1-4 OR WHEEL WEAPONS   TAB INVENTORY   M MAP",
         "J OBJECTIVES   F5 QUICKSAVE   F9 QUICKLOAD   ESC PAUSE",
     }
     for i, l in ipairs(lines) do UI.text(l, 0, 250 + i * 10, { 0.85, 0.85, 0.8, a * 0.9 }, UI.fontS, "center", UI.VW) end
@@ -821,7 +821,7 @@ function Game.drawDead()
     local causes = { cold = "YOU FROZE TO DEATH", radiation = "RADIATION SICKNESS TOOK YOU", fall = "YOU FELL",
                      tank = "YOUR TANK WAS DESTROYED WITH YOU INSIDE", tank_lost = "WITHOUT THE TANK, THE WINTER TAKES YOU",
                      hound = "TORN APART BY FROST HOUNDS", crawler = "THE CRAWLERS GOT YOU", burrower = "DRAGGED BENEATH THE SNOW",
-                     mutant = "CRUSHED BY THE MUTANT", explosion = "KILLED BY AN EXPLOSION", shot = "SHOT DEAD",
+                     mutant = "CRUSHED BY THE MUTANT", zombie = "THE WALKERS DRAGGED YOU DOWN", spider = "THE SPIDERS FED WELL", explosion = "KILLED BY AN EXPLOSION", shot = "SHOT DEAD",
                      anomaly = "THE ANOMALY TORE YOU APART" }
     lg.setColor(0, 0, 0, 0.5)
     lg.rectangle("fill", 0, 0, UI.VW, UI.VH)
@@ -897,6 +897,7 @@ function Game.keypressed(key)
         if key == "1" then G.weapons.switch("rifle") return end
         if key == "2" then G.weapons.switch("smg") return end
         if key == "3" then G.weapons.switch("pistol") return end
+        if key == "4" then G.weapons.switch("shotgun") return end
     elseif Game.state == "inventory" then
         if key == "tab" or key == "i" or key == "escape" then Game.state = "play" love.mouse.setRelativeMode(true) end
         if key == "m" then Game.state = "map" end

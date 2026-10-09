@@ -100,11 +100,15 @@ function love.load(args)
     for _, a in ipairs(args or {}) do
         if a == "--autotest" then autotest = require("tools.autotest") end
         if a == "--drivetest" then autotest = require("tools.drivetest") end
+        if a == "--geartest" then autotest = require("tools.geartest") end
+        if a == "--psxtest" then autotest = require("tools.psxtest") end
+        if a == "--packtest" then autotest = require("tools.packtest") end
     end
     if not autotest and (Settings.data.fullscreen or Settings.data.resolution ~= 1) then Settings.applyWindow() end
     Textures.init()
     R.init(Settings.data.quality)
     R.wobble = Settings.data.wobble
+    R.screenFilter = Settings.data.screen
     G.app = "loading"
     G.loadStart = love.timer.getTime()
     loader = coroutine.create(buildAll)
@@ -176,7 +180,8 @@ function love.mousemoved(x, y, dx, dy)
 end
 
 function love.focus(f)
-    if not f and G.app == "game" and G.game.state == "play" then
+    -- the self-driving test modes keep running when the window loses focus
+    if not f and not autotest and G.app == "game" and G.game.state == "play" then
         G.game.state = "pause"
         love.mouse.setRelativeMode(false)
     end

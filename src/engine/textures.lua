@@ -59,18 +59,34 @@ T.tnoise, T.tfbm = tnoise, tfbm
 
 function T.init()
     make("white", 4, function() return 1, 1, 1 end)
-    make("snow", 32, function(x, y, s, r)
-        local n = tfbm(x, y, s, 4, 3, 1)
-        local sp = r:next() > 0.93 and 0.06 or 0
-        local v = 0.80 + n * 0.16 + sp
-        return v * 0.96, v * 0.98, v
+    -- wind-packed snow: soft drifts with blue hollows, sastrugi ripples, crust sparkle and grit
+    make("snow", 64, function(x, y, s, r)
+        local drift = tfbm(x, y, s, 2, 3, 1)
+        local fine = tfbm(x, y, s, 8, 2, 71)
+        local warp = tnoise(x, y, s, 4, 72) * 2.2
+        local ripple = math.sin(((x + y * 0.5) / s * 6 + warp) * 2 * math.pi)
+        local v = 0.74 + drift * 0.17 + fine * 0.07 + (ripple > 0.55 and 0.045 or (ripple < -0.7 and -0.05 or 0))
+        local shade = clamp01((0.5 - drift) * 2.2)                 -- hollows turn blue-grey
+        local cr, cg, cb = v * (0.97 - shade * 0.09), v * (0.985 - shade * 0.04), v * (1.0 + shade * 0.03)
+        local k = r:next()
+        if k > 0.985 then cr, cg, cb = cr + 0.14, cg + 0.14, cb + 0.14       -- ice crystals
+        elseif k < 0.006 then cr, cg, cb = cr * 0.62, cg * 0.6, cb * 0.56 end -- twigs and grit
+        return cr, cg, cb
     end)
-    make("snowroad", 32, function(x, y, s, r)
+    -- driven road: packed grey snow, slush and patches worn down to the wet asphalt
+    make("snowroad", 64, function(x, y, s, r)
         local n = tfbm(x, y, s, 4, 3, 2)
-        local rut = math.abs(math.sin((x / s) * math.pi * 4)) -- tire ruts
-        local mud = (n > 0.55) and 0.18 or 0
-        local v = 0.62 + n * 0.2 - mud - (rut < 0.3 and 0.08 or 0) + r:next() * 0.04
-        return v * 0.95, v * 0.93, v * 0.92
+        local fine = tfbm(x, y, s, 16, 2, 73)
+        local worn = tfbm(x, y, s, 4, 3, 74)
+        local v = 0.62 + n * 0.16 + fine * 0.07
+        local cr, cg, cb = v * 0.95, v * 0.95, v * 0.97
+        if worn > 0.6 then
+            local k = 0.21 + fine * 0.12 + (r:next() > 0.9 and 0.06 or 0)
+            cr, cg, cb = k, k * 0.98, k * 0.97
+        elseif worn > 0.53 then
+            cr, cg, cb = v * 0.7, v * 0.67, v * 0.64
+        end
+        return cr, cg, cb
     end)
     make("ground", 32, function(x, y, s, r)
         local n = tfbm(x, y, s, 4, 3, 3)
@@ -163,12 +179,36 @@ function T.init()
         if mud then cr, cg, cb = 0.27, 0.23, 0.19 end
         return cr, cg, cb
     end)
+    -- track links run along u (x): 4 links per repeat, each a different shade so the scroll reads clearly
     make("tread", 16, function(x, y, s, r)
-        local link = (y % 4 == 0) and 0.1 or 0
-        local cleat = (x % 8 < 2) and -0.06 or 0
-        local v = 0.22 + link + cleat + r:next() * 0.05
-        local snow = r:next() > 0.85 and 0.3 or 0
+        local link = math.floor(x / 4)
+        local lx = x % 4
+        local v = 0.2 + U.hash2(link, 0, 61) * 0.1 + r:next() * 0.04
+        if lx == 0 then v = 0.06 elseif lx == 1 then v = v + 0.2 end       -- gap, then the worn cleat edge
+        if (y == 5 or y == 10) and lx > 0 then v = v - 0.08 end             -- guide horn rows
+        local snow = (link == 2 and lx > 1 and y > 2 and y < 13 and r:next() > 0.35) and 0.45 or 0
         return v * 1.1 + snow, v * 0.95 + snow, v * 0.85 + snow
+    end)
+    -- road wheel disc (cylinder caps map the whole texture): rubber tyre, dished steel, spokes, hub
+    make("wheel", 32, function(x, y, s, r)
+        local dx, dy = (x - 15.5) / 15.5, (y - 15.5) / 15.5
+        local d = math.sqrt(dx * dx + dy * dy)
+        local a = math.atan2(dy, dx)
+        if d > 0.84 then local v = 0.09 + r:next() * 0.04 return v, v, v end
+        if d < 0.16 then return 0.5, 0.5, 0.48 end
+        if d < 0.3 then
+            if math.floor((a + math.pi) / (2 * math.pi) * 6) % 2 == 0 and d > 0.2 then return 0.12, 0.12, 0.12 end
+            return 0.3, 0.31, 0.29
+        end
+        local spoke = math.abs(((a + math.pi) / (2 * math.pi) * 6) % 1 - 0.5) < 0.16
+        local v = (spoke and 0.4 or 0.24) + r:next() * 0.04
+        if d > 0.72 then v = v + 0.08 end
+        local cr, cg, cb = v * 0.95, v * 0.98, v * 0.92
+        -- one mud/snow smear so the rotation is obvious
+        if a > 0.3 and a < 1.3 and d > 0.4 then
+            if d > 0.6 then cr, cg, cb = 0.8, 0.82, 0.86 else cr, cg, cb = 0.3, 0.24, 0.18 end
+        end
+        return cr, cg, cb
     end)
     make("interior", 32, function(x, y, s, r)
         -- ivory painted interior with wear
@@ -302,6 +342,17 @@ function T.init()
         local a = clamp01(1 - d)
         return 1, 1, 1, a * a
     end)
+end
+
+-- register an image file (model atlases etc.) under a material name
+function T.loadFile(name, path)
+    if T.cache[name] then return T.cache[name] end
+    local img = love.graphics.newImage(path, { mipmaps = true })
+    img:setFilter("linear", "nearest", 8)
+    img:setMipmapFilter("linear")
+    img:setWrap("repeat", "repeat")
+    T.cache[name] = img
+    return img
 end
 
 function T.get(name) return T.cache[name] or T.cache.white end

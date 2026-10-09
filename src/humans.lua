@@ -5,6 +5,8 @@ local P = require("src.physics")
 local R = require("src.engine.renderer")
 local MB = require("src.engine.meshbuilder")
 local M3 = require("src.engine.math3d")
+local Ch = require("src.characters")
+local PA = require("src.psx_assets")
 
 local H = { list = {}, noises = {} }
 local G
@@ -88,6 +90,12 @@ end
 
 local function buildGun()
     local mb = MB.new(606)
+    if PA.has(PA.AK) then
+        mb:color(1, 1, 1)
+        mb:translate(0.12, -0.02, 0)
+        PA.emitAK(mb)
+        return mb:build()
+    end
     mb:material("wood"):color(0.7, 0.5, 0.35)
     mb:box(-0.35, -0.05, -0.025, -0.05, 0.03, 0.025)
     mb:box(0.05, -0.04, -0.025, 0.3, 0.02, 0.025)
@@ -143,6 +151,7 @@ function H.init(game)
     G = game
     H.models = { loner = buildSet("loner"), bandit = buildSet("bandit"), gun = buildGun() }
     H.frames = { M3.frame(), M3.frame(), M3.frame() }
+    Ch.preload()
     H.reset()
 end
 
@@ -517,7 +526,10 @@ function H.draw()
     matIdx = 0
     for _, h in ipairs(H.list) do
         if R.visible(h.x, h.y + 1, h.z, 2) then
-            local m = H.models[h.faction] or H.models.loner
+            -- a figure from the character pack when there is one, else the procedural set
+            if h.look == nil then h.look = Ch.forNpc(h.faction, h.id) or false end
+            local base = H.models[h.faction] or H.models.loner
+            local m = h.look or base
             local sit = h.state == "sit"
             local dead = h.state == "dead"
             local walk = math.min(1, h.speed / 1.5)
@@ -533,10 +545,10 @@ function H.draw()
             for side = -1, 1, 2 do
                 local swing = sit and 1.45 or (math.sin(ph + (side > 0 and math.pi or 0)) * 0.55 * walk)
                 local thigh = child(root, 0, -0.02, side * 0.1, 0, swing, 0)
-                R.drawModel(m.thigh, thigh:matrix(mat()), p)
+                R.drawModel(side < 0 and m.thighL or m.thighR or m.thigh, thigh:matrix(mat()), p)
                 local knee = sit and -1.5 or (-math.max(0, math.sin(ph + (side > 0 and math.pi or 0) - 1.2)) * 0.8 * walk)
                 local shin = child(thigh, 0, -0.44, 0, 0, knee, 0)
-                R.drawModel(m.shin, shin:matrix(mat()), p)
+                R.drawModel(side < 0 and m.shinL or m.shinR or m.shin, shin:matrix(mat()), p)
             end
             -- torso leans forward a little when sitting or aiming
             local lean = sit and 0.25 or (h.aim * 0.12)
@@ -550,7 +562,7 @@ function H.draw()
             for side = -1, 1, 2 do
                 local yaw = side < 0 and U.lerp(0.25, 0.45, aim) or U.lerp(-0.05, 0.0, aim)
                 local arm = child(torso, 0.02, 0.52, side * 0.24, yaw, armPitch + (side < 0 and 0.15 or 0), 0)
-                R.drawModel(m.arm, arm:matrix(mat()), p)
+                R.drawModel(side < 0 and m.armL or m.armR or m.arm, arm:matrix(mat()), p)
             end
             local gun
             if sit then gun = child(torso, 0.35, 0.1, 0.0, 0.4, -0.15, 0)

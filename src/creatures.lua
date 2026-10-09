@@ -5,6 +5,8 @@ local P = require("src.physics")
 local R = require("src.engine.renderer")
 local MB = require("src.engine.meshbuilder")
 local M3 = require("src.engine.math3d")
+local Gltf = require("src.engine.gltf")
+local PA = require("src.psx_assets")
 
 local C = {}
 local G
@@ -18,6 +20,11 @@ C.KINDS = {
                  cool = 1.6, height = 1.6, retreatAt = 0, tankDmg = 3 },
     mutant = { name = "LARGE MUTANT", hp = 750, walk = 1.8, run = 5.2, dmg = 42, range = 3.0, sight = 55, hear = 0.9, radius = 1.1,
                cool = 2.0, height = 3.0, retreatAt = 0, tankDmg = 9 },
+    -- imported PSX models with their own animations (see C.draw)
+    zombie = { name = "WALKER", hp = 80, walk = 0.9, run = 3.3, dmg = 15, range = 1.5, sight = 36, hear = 1.2, radius = 0.4,
+               cool = 1.1, height = 1.8, retreatAt = 0, tankDmg = 0.5 },
+    spider = { name = "GIANT SPIDER", hp = 65, walk = 1.8, run = 7.0, dmg = 11, range = 1.8, sight = 30, hear = 1.5, radius = 0.75,
+               cool = 0.9, height = 1.0, retreatAt = 0.15, tankDmg = 0.8 },
 }
 
 ---------------------------------------------------------------------------
@@ -207,7 +214,10 @@ end
 
 function C.init(game)
     G = game
-    C.models = { hound = buildHound(), crawler = buildCrawler(), burrower = buildBurrower(), mutant = buildMutant() }
+    C.models = { hound = buildHound(), crawler = buildCrawler(), burrower = buildBurrower(), mutant = buildMutant(),
+                 -- stride: ground speed at which the walk cycle plays at its authored rate
+                 zombie = { gltf = PA.model("creatures", "zombie"), scale = 1.0, stride = 0.8, neck = { -0.15, 1.62, 0 } },
+                 spider = { gltf = PA.model("creatures", "giant_spider"), scale = 1.35, stride = 2.4 } }
     C.list = {}
     C.noises = {}
     C.groups = {}
@@ -560,6 +570,23 @@ local function updateCreature(c, dt)
     c.alertT = math.max(0, c.alertT - dt * 0.1)
 end
 
+-- pick the animation clip for an imported model and advance its clock
+local function animate(c, m, dt)
+    local want, loop, rate = "idle", true, 1
+    if c.state == "dead" then want, loop = "death", false
+    elseif c.hitT and c.hitT > 0 then want, loop = "hit", false
+    elseif c.state == "attack" then
+        -- stretch the strike over the wind-up plus the recovery
+        want, loop, rate = "attack", false, Gltf.duration(m.gltf, "attack") / (0.45 + c.def.cool)
+    elseif c.speed > 0.15 then
+        want, rate = "walk", U.clamp(c.speed / m.stride, 0.5, 3.2)
+    end
+    c.hitT = math.max(0, (c.hitT or 0) - dt)
+    if c.anim ~= want then c.anim, c.animT = want, 0 end
+    c.animLoop = loop
+    c.animT = c.animT + dt * rate
+end
+
 function C.update(dt)
     C.time = C.time + dt
     C.spawnT = (C.spawnT or 0) - dt
@@ -567,7 +594,11 @@ function C.update(dt)
         C.spawnT = 1
         updateSpawns()
     end
-    for _, c in ipairs(C.list) do updateCreature(c, dt) end
+    for _, c in ipairs(C.list) do
+        updateCreature(c, dt)
+        local m = C.models[c.kind]
+        if m.gltf then animate(c, m, dt) end
+    end
     for i = #C.list, 1, -1 do
         if C.list[i].remove then table.remove(C.list, i) end
     end
@@ -601,6 +632,7 @@ function C.damage(c, amount, hx, hy, hz, dx, dz)
     if c.state == "buried" then c.emerge = 0.5 end
     c.hp = c.hp - amount
     c.hurtT = 0.15
+    if c.state ~= "attack" then c.hitT = 0.5 end
     c.x, c.z = c.x + (dx or 0) * math.min(0.6, amount / 200), c.z + (dz or 0) * math.min(0.6, amount / 200)
     if c.hp <= 0 then
         c.state = "dead"
@@ -697,7 +729,12 @@ function C.draw()
             local bob = math.abs(math.sin(c.phase)) * 0.04 * math.min(1, c.speed / 3)
             root.px, root.py, root.pz = c.x, c.y + bob - (c.state == "dead" and 0.15 or 0), c.z
             local params = { tint = c.hurtT > 0 and { 1.4, 0.85, 0.85, 1 } or nil, interior = c.underground and 1 or 0 }
-            if c.kind == "burrower" then
+            if m.gltf then
+                root:setYawPitchRoll(c.yaw, 0, 0)
+                root.px, root.py, root.pz = c.x, c.y, c.z
+                Gltf.pose(m.gltf, c.anim or "idle", c.animT or 0, c.animLoop ~= false)
+                Gltf.draw(R, m.gltf, root:matrix(mat(), m.scale), params)
+            elseif c.kind == "burrower" then
                 local e = c.state == "buried" and (c.emerge or 0) or 1
                 if c.state == "dead" then e = math.max(0, 1 - c.deathT * 0.5) end
                 R.drawModel(m.mound, root:matrix(mat()), params)

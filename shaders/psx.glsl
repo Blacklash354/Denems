@@ -34,6 +34,7 @@ uniform int numLights;
 uniform vec4 spotPos;   // xyz, intensity
 uniform vec4 spotDir;   // xyz, cos(cutoff)
 uniform float flipY;
+uniform vec4 mist;       // ground height, layer thickness, density, time
 attribute vec3 VertexNormal;
 
 vec4 position(mat4 transformProjection, vec4 vertexPosition) {
@@ -68,6 +69,13 @@ vec4 position(mat4 transformProjection, vec4 vertexPosition) {
 
     float fd = length(wp.xyz - camPos);
     vFog = clamp((fd - fogRange.x) / (fogRange.y - fogRange.x), 0.0, fogMax);
+    // low-lying mist: pools near the ground and in hollows, drifts in slow patches
+    if (mist.z > 0.0) {
+        float low = clamp(1.0 - (wp.y - mist.x) / mist.y, 0.0, 1.0);
+        float drift = 0.62 + 0.38 * sin(wp.x * 0.045 + mist.w * 0.11) * sin(wp.z * 0.038 - mist.w * 0.07);
+        float m = low * low * drift * mist.z * clamp((fd - 4.0) / 40.0, 0.0, 1.0) * (1.0 - uInterior);
+        vFog = min(1.0 - (1.0 - vFog) * (1.0 - m), max(vFog, fogMax));
+    }
 
     vec4 clip = viewProj * wp;
     // vertex snapping (PSX jitter)

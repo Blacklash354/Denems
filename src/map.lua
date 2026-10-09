@@ -57,6 +57,10 @@ local function icon(kind, x, y, s, a)
         lg.polygon("line", x - 6, y + 4, x, y - 5, x + 6, y + 4)
         lg.line(x, y - 5, x, y + 4)
         lg.setColor(1, 0.6, 0.25, a) lg.circle("fill", x + 7, y + 3, 1.5, 6)
+    elseif kind == "station" then
+        lg.rectangle("line", x - 6, y - 5, 12, 3)
+        lg.line(x - 4, y - 2, x - 4, y + 5) lg.line(x + 4, y - 2, x + 4, y + 5)
+        lg.rectangle("fill", x - 1, y, 2, 5)
     elseif kind == "checkpoint" then
         lg.line(x - 6, y + 3, x + 6, y - 2) lg.rectangle("line", x - 7, y + 3, 3, 3)
     end

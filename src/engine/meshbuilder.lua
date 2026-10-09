@@ -145,6 +145,28 @@ function MB:tri(ax, ay, az, au, av, bx, by, bz, bu, bv, cx, cy, cz, cu, cv, nx, 
     g.n = g.n + 3
 end
 
+-- emit one vertex of an imported model: t = { x,y,z, u,v, nx,ny,nz, r,g,b,a } in builder-local space.
+-- Keeps the model's own normals and baked colours (tinted by the builder colour, no jitter).
+-- Call in multiples of three.
+function MB:vertex(t)
+    local px, py, pz = self:xf(t[1], t[2], t[3])
+    local nx, ny, nz = self:xfn(t[6], t[7], t[8])
+    local g = group(self)
+    local v = g.v
+    local k = #v
+    v[k + 1], v[k + 2], v[k + 3], v[k + 4], v[k + 5] = px, py, pz, t[4], t[5]
+    v[k + 6], v[k + 7], v[k + 8] = nx, ny, nz
+    v[k + 9], v[k + 10], v[k + 11], v[k + 12] = t[9] * self.r, t[10] * self.g, t[11] * self.b, t[12] * self.a
+    local b = self.bounds
+    if px < b[1] then b[1] = px end
+    if py < b[2] then b[2] = py end
+    if pz < b[3] then b[3] = pz end
+    if px > b[4] then b[4] = px end
+    if py > b[5] then b[5] = py end
+    if pz > b[6] then b[6] = pz end
+    g.n = g.n + 1
+end
+
 -- quad a,b,c,d (counter-clockwise when seen from front) with given uvs
 function MB:quadUV(ax, ay, az, au, av, bx, by, bz, bu, bv, cx, cy, cz, cu, cv, dx, dy, dz, du, dv)
     self:tri(ax, ay, az, au, av, bx, by, bz, bu, bv, cx, cy, cz, cu, cv)

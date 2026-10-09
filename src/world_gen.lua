@@ -13,12 +13,13 @@ local function id(prefix) nextId = nextId + 1 return prefix .. "_" .. nextId end
 
 local LOOT = {
     house = { { "food", 0.55, 1, 2 }, { "water", 0.4, 1, 2 }, { "medkit", 0.15, 1, 1 }, { "rifle_ammo", 0.4, 5, 10 },
-              { "antirad", 0.15, 1, 1 }, { "battery", 0.1, 1, 1 }, { "pistol_ammo", 0.25, 6, 12 } },
+              { "antirad", 0.15, 1, 1 }, { "battery", 0.1, 1, 1 }, { "pistol_ammo", 0.25, 6, 12 }, { "shotgun_ammo", 0.2, 3, 8 } },
     military = { { "rifle_ammo", 0.6, 5, 15 }, { "mg_ammo", 0.45, 50, 150 }, { "medkit", 0.25, 1, 1 },
                  { "repair_kit", 0.2, 1, 1 }, { "food", 0.3, 1, 2 }, { "ap_shell", 0.15, 1, 2 }, { "he_shell", 0.15, 1, 2 } },
     industrial = { { "repair_kit", 0.3, 1, 1 }, { "battery", 0.3, 1, 1 }, { "tools", 0.35, 1, 1 }, { "antirad", 0.3, 1, 1 },
                    { "water", 0.3, 1, 2 }, { "rifle_ammo", 0.3, 5, 10 } },
-    wreck = { { "mg_ammo", 0.3, 30, 90 }, { "fuel", 0.15, 1, 1 }, { "tools", 0.3, 1, 1 }, { "rifle_ammo", 0.3, 5, 10 } },
+    wreck = { { "mg_ammo", 0.3, 30, 90 }, { "fuel", 0.15, 1, 1 }, { "tools", 0.3, 1, 1 }, { "rifle_ammo", 0.3, 5, 10 },
+              { "shotgun_ammo", 0.25, 3, 8 } },
 }
 
 local function rollLoot(kind)
@@ -150,6 +151,8 @@ local function spawn(x, z, kind, count, loc, opts)
     W.spawns[#W.spawns + 1] = { x = x, z = z, kind = kind, count = count or 1, loc = loc, y = opts and opts.y,
                                 underground = opts and opts.underground, radius = opts and opts.radius or 25 }
 end
+
+G.spawn = spawn
 
 local function placeHouse(x, z, rot, w, d, opts, lootKind)
     local ctx = W.dctx(x, z, rot, "building", 900)
@@ -990,6 +993,8 @@ function G.build()
         { "base", buildBase }, { "tower", buildTower }, { "bunker", buildBunker }, { "plant", buildPlant },
         { "forest", buildForest }, { "wilderness", buildWilderness }, { "anomalies", buildAnomalies },
         { "grass", function() grassField(9000) end },
+        -- last, so the ids of everything above stay the same as in older saves
+        { "station", function() require("src.world_psx").build(G, rng) end },
     }
     for i, s in ipairs(steps) do
         s[2]()

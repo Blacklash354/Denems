@@ -12,6 +12,8 @@ TM.CUPOLA_R = 0.34
 TM.HATCH_HINGE = { -0.95 - 0.36, 1.42, -0.75 } -- turret local
 TM.MG_BALL = { 3.12, 1.95, 0.75 }       -- tank local
 TM.SLIT = { 3.0, 2.0, -0.75 }
+TM.TRACK_UV = 1.6                      -- tread texture repeats per metre of belt
+TM.WHEEL_R = 0.43
 
 local function only(...)
     local f = { top = false, bottom = false, front = false, back = false, left = false, right = false }
@@ -48,23 +50,26 @@ local function trackPath()
     return pts
 end
 
-function TM.buildTrack(side)
-    local mb = MB.new(side > 0 and 3 or 4)
+-- closed track belt along a loop of (x,y) points; u runs along the belt so uvOffset scrolls it
+function TM.buildBelt(pts, zIn, zOut, side, seed)
+    local mb = MB.new(seed)
     mb.jitter = 0.04
     mb:material("tread"):color(0.85, 0.82, 0.8)
-    local z0, z1 = side * 1.45, side * 1.97
+    local z0, z1 = zIn, zOut
     if side < 0 then z0, z1 = z1, z0 end
-    local pts = trackPath()
     local u = 0
     for i = 1, #pts do
         local a, b = pts[i], pts[i % #pts + 1]
         local l = math.sqrt((b[1] - a[1]) ^ 2 + (b[2] - a[2]) ^ 2)
-        local u1 = u + l * 1.6
+        local u1 = u + l * TM.TRACK_UV
         mb:quadUV(a[1], a[2], z0, u, 0, b[1], b[2], z0, u1, 0, b[1], b[2], z1, u1, 1, a[1], a[2], z1, u, 1)
-        -- track edges (guide horns)
         u = u1
     end
     return mb:build()
+end
+
+function TM.buildTrack(side)
+    return TM.buildBelt(trackPath(), side * 1.45, side * 1.97, side, side > 0 and 3 or 4)
 end
 
 function TM.buildHull()
@@ -197,18 +202,23 @@ function TM.buildHull()
     return mb:build()
 end
 
-function TM.buildWheels(side)
-    local mb = MB.new(21)
-    local z = side * 1.7
+-- road wheel layout per side: { x, y, z } hub positions in tank-local space (interleaved)
+function TM.wheelLayout(side)
+    local out = {}
     for i = 0, 7 do
-        local x = -2.75 + i * 0.75
         local outer = (i % 2 == 0)
-        local zc = z + side * (outer and 0.16 or -0.1)
-        mb:material("tank"):color(0.75, 0.75, 0.72)
-        mb:cylinderZ(zc - 0.08, zc + 0.08, x, 0.5, 0.43, 9)
-        mb:material("metal"):color(0.35, 0.35, 0.35)
-        mb:cylinderZ(zc + side * 0.08 - 0.01, zc + side * 0.08 + 0.01, x, 0.5, 0.16, 6)
+        out[#out + 1] = { -2.75 + i * 0.75, 0.5, side * 1.7 + side * (outer and 0.16 or -0.1) }
     end
+    out[#out + 1] = { -3.55, 0.66, side * 1.72 } -- rear idler
+    return out
+end
+
+-- a single wheel (wheel-local: axle along z, origin at the hub); drawn once per wheel so it can spin
+function TM.buildWheel(r, halfW, seg)
+    local mb = MB.new(21)
+    mb.jitter = 0.03
+    mb:material("wheel"):color(0.95, 0.95, 0.92)
+    mb:cylinderZ(-halfW, halfW, 0, 0, r, seg or 10)
     return mb:build()
 end
 

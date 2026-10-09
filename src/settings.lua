@@ -5,7 +5,7 @@ local FILE = "settings.json"
 
 S.RESOLUTIONS = { { 1280, 720 }, { 1600, 900 }, { 1920, 1080 }, { 1024, 576 }, { 2560, 1440 } }
 
-S.data = { master = 0.8, sfx = 1.0, music = 0.6, sensitivity = 0.5, fullscreen = false, resolution = 1, quality = 2, wobble = false }
+S.data = { master = 0.8, sfx = 1.0, music = 0.6, sensitivity = 0.5, fullscreen = false, resolution = 1, quality = 2, wobble = false, screen = 2 }
 
 function S.load()
     local s = love.filesystem.read(FILE)

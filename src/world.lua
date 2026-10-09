@@ -28,12 +28,17 @@ W.locations = {
     { id = "tower", name = "RADIO TOWER", area = "RADIO TOWER", x = 305, z = -250, r = 45, icon = "tower", hill = 26 },
     { id = "bunker", name = "BUNKER", area = "UNDERGROUND BUNKER", x = -405, z = -455, r = 30, icon = "bunker" },
     { id = "plant", name = "NUCLEAR PLANT", area = "NUCLEAR FACILITY", x = 130, z = -505, r = 115, icon = "plant" },
+    { id = "station", name = "FUEL STATION", area = "ABANDONED FUEL STATION", x = 60, z = 352, r = 24, icon = "station" },
 }
+-- the microdistrict only exists when the user's building models are in assets/
+if love.filesystem.getInfo("assets/lowpoly_panelka_psx.glb") then
+    W.locations[#W.locations + 1] = { id = "district", name = "MICRODISTRICT", area = "DEAD MICRODISTRICT", x = -405, z = 300, r = 64, icon = "town" }
+end
 for _, l in ipairs(W.locations) do W[l.id] = l end
 
 W.roads = {
     { { 60, 640 }, { 42, 430 }, { 30, 250 }, { 20, 95 }, { 0, -80 }, { 55, -245 }, { 115, -400 }, { 130, -450 } },
-    { { 31, 300 }, { -80, 312 }, { -200, 300 }, { -300, 285 } },
+    { { 31, 300 }, { -80, 312 }, { -200, 300 }, { -300, 285 }, { -352, 296 } },
     { { 0, -80 }, { -140, -45 }, { -285, -15 }, { -380, 0 } },
     { { -140, -45 }, { -205, -200 }, { -255, -335 }, { -330, -405 }, { -395, -445 } },
     { { 55, -245 }, { 180, -262 }, { 290, -250 } },

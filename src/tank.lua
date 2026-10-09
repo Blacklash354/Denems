@@ -17,7 +17,7 @@ function T.init(game)
     T.models = {
         hull = TM.buildHull(), turret = TM.buildTurret(), gun = TM.buildGun(), breech = TM.buildBreech(),
         hatch = TM.buildHatch(), mgExt = TM.buildMGExterior(), mgInt = TM.buildMGInterior(),
-        trackL = TM.buildTrack(-1), trackR = TM.buildTrack(1), wheelsL = TM.buildWheels(-1), wheelsR = TM.buildWheels(1),
+        trackL = TM.buildTrack(-1), trackR = TM.buildTrack(1), wheel = TM.buildWheel(TM.WHEEL_R, 0.08, 10),
         sprocket = TM.buildSprocket(), lever = TM.buildLever(),
         hullInt = TI.buildHull(), turretInt = TI.buildTurret(), bulbs = TI.buildLampBulbs(), turretBulb = TI.buildTurretBulb(),
         radioDial = TI.buildRadioDial(),
@@ -33,6 +33,11 @@ function T.init(game)
     T.mgLocal = M3.frame()
     T.mgWorld = M3.frame()
     T.tmpFrame = M3.frame()
+    T.tmpFrame2 = M3.frame()
+    T.wheels = {}
+    for _, s in ipairs({ -1, 1 }) do
+        for _, w in ipairs(TM.wheelLayout(s)) do T.wheels[#T.wheels + 1] = { x = w[1], y = w[2], z = w[3], side = s, mat = {} } end
+    end
     T.mats = {}
     for _, k in ipairs({ "tank", "turret", "gun", "hatch", "mg", "sprL", "sprR", "levL", "levR" }) do T.mats[k] = {} end
 
@@ -79,7 +84,7 @@ function T.reset(state)
     T.rpm, T.gear, T.throttle, T.steer = 0, 0, 0, 0
     T.fuel = 38
     T.comp = { engine = 85, trackL = 100, trackR = 45, turret = 100, cannon = 100, hull = 82 }
-    T.trackOffL, T.trackOffR, T.sprocketAng = 0, 0, 0
+    T.trackOffL, T.trackOffR, T.wheelAngL, T.wheelAngR = 0, 0, 0, 0
     T.loaded = nil
     T.reloadT = 0
     T.ammoSelect = "AP"
@@ -303,9 +308,11 @@ function T.update(dt)
     local vL = T.speed + T.yawRate * half
     local vR = T.speed - T.yawRate * half
     T.trackVL, T.trackVR = vL, vR
-    T.trackOffL = (T.trackOffL - vL * dt * 1.6) % 1000
-    T.trackOffR = (T.trackOffR - vR * dt * 1.6) % 1000
-    T.sprocketAng = T.sprocketAng - (vL + vR) * 0.5 * dt / 0.42
+    T.trackOffL = (T.trackOffL - vL * dt * TM.TRACK_UV) % 1000
+    T.trackOffR = (T.trackOffR - vR * dt * TM.TRACK_UV) % 1000
+    -- every wheel on a side turns with that side's belt (sprocket, road wheels, idler)
+    T.wheelAngL = (T.wheelAngL - vL * dt / TM.WHEEL_R) % (2 * math.pi)
+    T.wheelAngR = (T.wheelAngR - vR * dt / TM.WHEEL_R) % (2 * math.pi)
     T.leverL = U.damp(T.leverL, (steer < 0 and 1 or 0) * 0.5 + (throttle < 0 and 0.4 or 0), 10, dt)
     T.leverR = U.damp(T.leverR, (steer > 0 and 1 or 0) * 0.5 + (throttle < 0 and 0.4 or 0), 10, dt)
 
@@ -575,13 +582,17 @@ function T.draw(cam)
     R.drawModel(m.hull, tankM, dparams)
     R.drawModel(m.trackL, tankM, { uv = { T.trackOffL, 0 }, tint = dmgTint })
     R.drawModel(m.trackR, tankM, { uv = { T.trackOffR, 0 }, tint = dmgTint })
-    R.drawModel(m.wheelsL, tankM, dparams)
-    R.drawModel(m.wheelsR, tankM, dparams)
-    for _, sp in ipairs({ { "sprL", -1.72 }, { "sprR", 1.72 } }) do
-        local tf = T.tmpFrame
-        tf:setYawPitchRoll(0, T.sprocketAng, 0)
+    local tf, wf = T.tmpFrame, T.tmpFrame2
+    for _, w in ipairs(T.wheels) do
+        tf:setYawPitchRoll(0, (w.side < 0 and T.wheelAngL or T.wheelAngR) + w.x * 1.7, 0)
+        tf.px, tf.py, tf.pz = w.x, w.y, w.z
+        T.frame:compose(tf, wf)
+        R.drawModel(m.wheel, wf:matrix(w.mat), dparams)
+    end
+    for _, sp in ipairs({ { "sprL", -1.72, T.wheelAngL }, { "sprR", 1.72, T.wheelAngR } }) do
+        tf:setYawPitchRoll(0, sp[3], 0)
         tf.px, tf.py, tf.pz = 3.32, 0.72, sp[2]
-        local wf = T.frame:compose(tf, M3.frame())
+        T.frame:compose(tf, wf)
         R.drawModel(m.sprocket, wf:matrix(T.mats[sp[1]]), dparams)
     end
     local turM = fm(T.turretWorld, "turret")

@@ -9,6 +9,14 @@ R.qualities = {
     { name = "LOW", w = 480, h = 270, drawDist = 170 },
     { name = "MEDIUM", w = 640, h = 360, drawDist = 220 },
     { name = "HIGH", w = 960, h = 540, drawDist = 270 },
+    { name = "PSX 240P", w = 426, h = 240, drawDist = 200 },
+}
+
+-- full-screen display filters applied in the post pass
+R.screenFilters = {
+    { name = "OFF", crt = 0, vhs = 0 },
+    { name = "CRT", crt = 1, vhs = 0 },
+    { name = "VHS", crt = 0.6, vhs = 1 },
 }
 
 local identity = M3.identity()
@@ -31,13 +39,14 @@ function R.init(quality)
     R.lights = {}
     R.time = 0
     R.stats = { draws = 0, tris = 0 }
-    R.fx = { grain = 0.025, aberration = 0.4, levels = 40, tint = { 0, 0, 0, 0 }, frost = 0, radiation = 0,
+    R.fx = { grain = 0.025, aberration = 0.4, levels = 32, tint = { 0, 0, 0, 0 }, frost = 0, radiation = 0,
              optic = 0, blur = 0, brightness = 1 }
     R.env = {
         fogColor = { 0.45, 0.47, 0.52 }, fogStart = 15, fogEnd = 170,
         sunDir = { 0.3, 0.35, -0.88 }, sunColor = { 0.45, 0.4, 0.38 }, ambient = { 0.42, 0.46, 0.55 },
         interiorAmbient = { 0.22, 0.17, 0.12 }, horizon = { 0.5, 0.48, 0.5 }, zenith = { 0.22, 0.22, 0.28 },
         sunGlow = { 0.9, 0.45, 0.2 },
+        mist = { 0, 7, 0 },   -- ground height, thickness, density (see environment.lua)
     }
     R.spot = { 0, 0, 0, 0 }
     R.spotDir = { 0, 0, 1, 0.9 }
@@ -146,6 +155,7 @@ function R.beginFrame()
         send(sh, "affine", 0.0)
     end
     send(sh, "flipY", -1)
+    send(sh, "mist", { e.mist[1], e.mist[2], e.mist[3], R.time })
     send(sh, "spotPos", R.spot)
     send(sh, "spotDir", R.spotDir)
     -- pick nearest lights
@@ -273,6 +283,9 @@ function R.endFrame(screenW, screenH)
     send(sh, "aspect", screenW / screenH)
     send(sh, "blur", fx.blur)
     send(sh, "brightness", fx.brightness)
+    local filter = R.screenFilters[R.screenFilter or 1] or R.screenFilters[1]
+    send(sh, "crt", filter.crt)
+    send(sh, "vhs", filter.vhs)
     lg.setColor(1, 1, 1, 1)
     lg.draw(R.canvas, 0, 0, 0, screenW / R.lowW, screenH / R.lowH)
     lg.setShader()

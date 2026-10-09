@@ -53,6 +53,13 @@ function Env.update(dt)
     e.fogStart = U.lerp(16, 4, w)
     e.fogEnd = fogEnd
     e.interiorAmbient = { 0.3, 0.22, 0.15 }
+    -- ground mist: thickest at night and dawn, thinned by daylight, blown away by a blizzard
+    local camera = G.camera
+    if camera and camera.x then
+        Env.mistY = U.damp(Env.mistY or G.world.height(camera.x, camera.z), G.world.height(camera.x, camera.z) - 0.5, 1.5, dt or 0.016)
+        e.mist[1], e.mist[2] = Env.mistY, 7 + dusk * 3
+        e.mist[3] = U.lerp(0.62, 0.3, daylight) * (1 - w * 0.6) + dusk * 0.2
+    end
     -- underground / inside overrides
     local pl = G.player
     if pl then
@@ -63,6 +70,7 @@ function Env.update(dt)
             e.horizon, e.zenith = e.fogColor, e.fogColor
             e.interiorAmbient = { 0.07, 0.075, 0.08 }
             Env.underground = true
+            e.mist[3] = 0
         else
             Env.underground = false
         end

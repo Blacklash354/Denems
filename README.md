@@ -3,8 +3,9 @@
 A first-person survival / exploration / tank game prototype for **LÖVE 11.4+** (real 3D, PSX style).
 You are alone in a nuclear winter. Your heavy tank is your shelter, storage, weapon platform and only way home.
 
-Everything — the 3D renderer, all models, textures and **all audio** — is generated procedurally in Lua.
-There are no external assets or libraries to install.
+The 3D renderer, the tank, the world and **all audio** are generated procedurally in Lua. On top of that the game
+loads a few hand-made PSX model packs (fuel station, wrecks, forest clutter, walkers, giant spiders, pistol and
+shotgun) and textures from `assets/` — see `assets/psx/CREDITS.md` for authors and licences. Nothing to install.
 
 ## Running
 
@@ -22,7 +23,7 @@ Requires LÖVE 11.4 or newer (tested on 11.5). The first launch takes a few seco
 | Interact / leave a seat | `E` (some actions are hold-to-complete) |
 | Flashlight | `F` |
 | Fire / aim / reload | `LMB` / `RMB` / `R` |
-| Rifle / PPSh-41 / pistol | `1` / `2` / `3` or mouse wheel |
+| Rifle / AK or PPSh / pistol / pump shotgun | `1` / `2` / `3` / `4` or mouse wheel |
 | Inventory / map / objectives | `Tab` / `M` / hold `J` |
 | Quick save / load | `F5` / `F9` |
 | Pause | `Esc` |
@@ -44,6 +45,10 @@ use the rear ladder to get down, repair tracks or other parts, refuel at the fil
 storage box, and climb back in through the hatch.
 
 Retro vertex wobble/affine textures are off by default (stable textures); enable "RETRO WOBBLE" in settings.
+The picture is dithered to 15-bit colour like the console; "SCREEN FILTER" in settings switches the CRT tube
+(default), a VHS look, or none, and "PSX 240P" is available as a graphics quality.
+
+Every road wheel, idler and sprocket turns with its own track, so the two sides run at different speeds in a turn.
 
 Components (engine, both tracks, turret, cannon and hull) can be damaged. Repairs cost repair kits.
 You can build repair kits from spare parts.
@@ -56,6 +61,8 @@ camp hostile. Bandits hold the checkpoint, the military base and the radio tower
 keep their distance while firing bursts, and run when your tank rolls in. Bodies can be searched.
 
 Mutants only live in their lairs: the forest by the river, the factory, the bunker and the nuclear plant.
+Walkers shamble around the abandoned fuel station on the main road and the edge of the village; giant spiders
+nest among dead trunks deep in the forest and in the industrial zone.
 Anomalies (electric discharges and gravitational vortexes) crackle in a few places; a detector beeps as you get close.
 
 ## Destruction
@@ -77,7 +84,8 @@ on foot, where you left the tank.
 
 ## Locations
 
-The frozen village (Soviet Town), the industrial zone, the frozen forest with the hunter's cabin,
+The frozen village (Soviet Town), the dead microdistrict of panel blocks west of it (when the building models
+are in `assets/`), the abandoned fuel station, the industrial zone, the frozen forest with the hunter's cabin,
 the military checkpoint, the Soviet military base, Radio Tower Seven, the underground bunker (Object 12)
 and the nuclear plant. The main story leads from the radio tower to the bunker and then to the plant's
 control block. The radio in the tank picks up broadcasts that reveal locations on the map.
@@ -94,6 +102,9 @@ src/engine/            math3d (frames/matrices), meshbuilder (procedural low-pol
 src/world.lua          heightfield terrain, chunked static geometry, colliders, queries
 src/world_gen.lua      all eight locations, roads, forest, loot, doors, tile-based interiors
 src/props.lua          modular buildings and props (houses, halls, hangars, towers, wrecks, trees...)
+src/engine/gltf.lua    .glb loader for rigid part-animated models; src/psx_assets.lua model packs
+src/world_psx.lua      fuel station, microdistrict, roadside wrecks, forest clutter and lairs built from the packs
+src/characters.lua     NPC figures cut from assets/characters_psx.glb into rigid parts; src/engine/obj.lua .obj loader
 src/destruction.lua    destructible objects: damage, collapse, ruins, debris
 src/tank*.lua          tank model, interior, physics/damage, driver / gunner / MG stations
 src/player.lua         first-person controller (world or tank-local frame), ladders, seats
@@ -108,6 +119,9 @@ src/survival.lua       health, stamina, body temperature, radiation
 src/missions.lua, radio.lua, map.lua, inventory.lua, save.lua (JSON), settings.lua, ui.lua, menu.lua
 tools/autotest.lua     automated playtest (love . --autotest): drives the game, checks gameplay flows, saves screenshots
 tools/drivetest.lua    autopilot (love . --drivetest): drives the tank from the start to the Radio Tower
+tools/geartest.lua     running gear check (love . --geartest): tracks and all wheels turn, sides split in a turn
+tools/psxtest.lua      imported assets tour (love . --psxtest): station, creatures, weapons; saves screenshots
+tools/packtest.lua     user pack tour (love . --packtest): pack guns, character figures, microdistrict
 ```
 
 Saves and settings are JSON files in the LÖVE save directory (`steel_hearth`).

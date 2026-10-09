@@ -4,6 +4,9 @@ local P = require("src.physics")
 local R = require("src.engine.renderer")
 local MB = require("src.engine.meshbuilder")
 local M3 = require("src.engine.math3d")
+local TM = require("src.tank_model")
+
+local WHEEL_R = 0.52
 
 local E = { tanks = {} }
 local G
@@ -19,17 +22,21 @@ local function buildModels()
               { -2.9, 1.65, -1.5 }, { 1.4, 1.65, -1.5 }, { 1.4, 1.65, 1.5 }, { -2.9, 1.65, 1.5 } })
     mb:hexa({ { 2.4, 0.45, -1.35 }, { 3.1, 0.9, -1.35 }, { 3.1, 0.9, 1.35 }, { 2.4, 0.45, 1.35 },
               { 1.4, 1.65, -1.5 }, { 1.45, 1.65, -1.5 }, { 1.45, 1.65, 1.5 }, { 1.4, 1.65, 1.5 } })
-    -- tracks and big road wheels
-    mb:material("tread"):color(0.7, 0.7, 0.68)
-    for _, s in ipairs({ -1, 1 }) do
-        local z0, z1 = s * 1.35, s * 1.62
-        if s < 0 then z0, z1 = z1, z0 end
-        mb:box(-3.2, 0.0, z0, 3.1, 0.12, z1)
-        mb:box(-3.2, 1.05, z0, 3.1, 1.15, z1)
-        mb:material("tank"):color(0.55, 0.62, 0.5)
-        for i = 0, 4 do mb:cylinderZ(z0 + 0.03, z1 - 0.03, -2.4 + i * 1.2, 0.55, 0.52, 9) end
-        mb:material("tread"):color(0.7, 0.7, 0.68)
+    -- tracks and the big road wheels are separate models so they can move (see E.draw)
+    local pts = {}
+    local function arc(cx, a0, a1)
+        for i = 0, 5 do
+            local a = a0 + (a1 - a0) * i / 5
+            pts[#pts + 1] = { cx + math.cos(a) * 0.57, 0.57 + math.sin(a) * 0.57 }
+        end
     end
+    arc(2.5, -math.pi / 2, math.pi / 2)
+    for i = 1, 4 do pts[#pts + 1] = { 2.5 - i * 1.02, 1.14 - math.sin(i / 5 * math.pi) * 0.05 } end
+    arc(-2.6, math.pi / 2, 3 * math.pi / 2)
+    for i = 1, 4 do pts[#pts + 1] = { -2.6 + i * 1.02, 0.0 } end
+    m.trackL = TM.buildBelt(pts, -1.35, -1.62, -1, 405)
+    m.trackR = TM.buildBelt(pts, 1.35, 1.62, 1, 406)
+    m.wheel = TM.buildWheel(WHEEL_R, 0.105, 9)
     -- exhaust, fuel drums, snow
     mb:material("metal"):color(0.45, 0.45, 0.42)
     mb:cylinderX(-3.3, -3.0, 1.2, -0.6, 0.1, 0.1, 6)
@@ -86,6 +93,11 @@ local function newTank(def)
     } }
     t.turretSet = { frame = t.turretFrame, boxes = { { -2.1, 0, -1.3, 1.3, 1.05, 1.3, walk = true, enemy = t } } }
     t.mats = { {}, {}, {}, {} }
+    t.trackOffL, t.trackOffR, t.wheelAngL, t.wheelAngR = 0, 0, 0, 0
+    t.wheels = {}
+    for _, s in ipairs({ -1, 1 }) do
+        for i = 0, 4 do t.wheels[#t.wheels + 1] = { x = -2.4 + i * 1.2, z = s * 1.485, side = s, mat = {} } end
+    end
     t.nx, t.ny, t.nz = 0, 1, 0
     return t
 end
@@ -340,6 +352,14 @@ local function updateTank(t, dt)
         local ex, ey, ez = t.frame:toWorld(-3.2, 1.3, 0)
         G.effects.smoke(ex, ey, ez, 0.5, 0.2, 0.2, 0.22, 2.5)
     end
+    -- running gear: each side follows its own belt speed (hull speed +/- the turn)
+    local yawRate = dt > 0 and U.angleTo(t.prevYaw or t.yaw, t.yaw) / dt or 0
+    t.prevYaw = t.yaw
+    local vL, vR = t.speed + yawRate * 1.5, t.speed - yawRate * 1.5
+    t.trackOffL = (t.trackOffL - vL * dt * TM.TRACK_UV) % 1000
+    t.trackOffR = (t.trackOffR - vR * dt * TM.TRACK_UV) % 1000
+    t.wheelAngL = (t.wheelAngL - vL * dt / WHEEL_R) % (2 * math.pi)
+    t.wheelAngR = (t.wheelAngR - vR * dt / WHEEL_R) % (2 * math.pi)
     E.updateFrames(t)
 end
 
@@ -442,12 +462,23 @@ function E.addLights(list)
     end
 end
 
+local wheelLocal, wheelWorld = M3.frame(), M3.frame()
+
 function E.draw()
     for _, t in ipairs(E.tanks) do
         if R.visible(t.x, t.y + 1.5, t.z, 7) then
             local tint = (not t.alive) and { 0.22, 0.2, 0.18, 1 } or nil
             local p = tint and { tint = tint } or nil
-            R.drawModel(E.models.hull, t.frame:matrix(t.mats[1]), p)
+            local hullM = t.frame:matrix(t.mats[1])
+            R.drawModel(E.models.hull, hullM, p)
+            R.drawModel(E.models.trackL, hullM, { uv = { t.trackOffL, 0 }, tint = tint })
+            R.drawModel(E.models.trackR, hullM, { uv = { t.trackOffR, 0 }, tint = tint })
+            for _, w in ipairs(t.wheels) do
+                wheelLocal:setYawPitchRoll(0, (w.side < 0 and t.wheelAngL or t.wheelAngR) + w.x * 1.3, 0)
+                wheelLocal.px, wheelLocal.py, wheelLocal.pz = w.x, 0.55, w.z
+                t.frame:compose(wheelLocal, wheelWorld)
+                R.drawModel(E.models.wheel, wheelWorld:matrix(w.mat), p)
+            end
             R.drawModel(E.models.turret, t.turretFrame:matrix(t.mats[2]), p)
             R.drawModel(E.models.gun, t.gunFrame:matrix(t.mats[3]), p)
             if t.alive then R.drawModel(E.models.light, t.turretFrame:matrix(t.mats[4]), { emissive = 1 }) end

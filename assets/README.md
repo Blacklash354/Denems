@@ -1,8 +1,8 @@
 # Assets
 
-The game ships without external asset files: every texture, model and sound is generated
-procedurally at startup (`src/engine/textures.lua`, `src/tank_model.lua`, `src/props.lua`,
-`src/audio.lua`).
+Most of the game is generated procedurally at startup; `psx/` holds the imported model packs
+(see `psx/CREDITS.md`) and `textures/` a few texture overrides. Procedural sources: `src/engine/textures.lua`, `src/tank_model.lua`, `src/props.lua`,
+`src/audio.lua`.
 
 Drop-in overrides are supported:
 

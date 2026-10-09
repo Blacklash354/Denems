@@ -598,11 +598,13 @@ function UI.drawInventory()
     local sy = y + h - 64
     text(string.format("HEALTH %d   WARMTH %d   RADIATION %d   LIGHT %d%%", pl.health, pl.warmth, pl.radiation, pl.battery), x + 10, sy, COL.dim, UI.fontS)
     local Wp = G.weapons
-    text(string.format("[1] %s (%d)  [2] %s (%d)  [3] %s (%d)", Wp.DEFS.rifle.name, Wp.mag.rifle, Wp.DEFS.smg.name, Wp.mag.smg, Wp.DEFS.pistol.name, Wp.mag.pistol), x + 10, sy + 12, COL.dim, UI.fontS)
+    local guns = {}
+    for i, id in ipairs(Wp.ORDER) do guns[i] = string.format("[%d] %s (%d)", i, Wp.DEFS[id].name, Wp.mag[id]) end
+    text(table.concat(guns, "  "), x + 10, sy + 12, COL.dim, UI.fontS)
     text("[TAB] CLOSE   [M] MAP   [J] OBJECTIVES", x + 10, y + h - 14, COL.dim, UI.fontS)
 end
 
-local STORE_STEP = { mg_ammo = 50, rifle_ammo = 5, pistol_ammo = 8 }
+local STORE_STEP = { mg_ammo = 50, rifle_ammo = 5, pistol_ammo = 8, shotgun_ammo = 6 }
 
 function UI.drawStorage()
     local pinv, tinv = G.inventory.player, G.inventory.tank
@@ -647,7 +649,7 @@ function UI.drawStorage()
     if UI.button("STORE ALL SUPPLIES", x + 12, y + h - 30, 150, 18) then
         for _, id in ipairs(pinv:list()) do
             local def = Inv.ITEMS[id]
-            if not def.quest and id ~= "rifle_ammo" and id ~= "pistol_ammo" and id ~= "medkit" then
+            if not def.quest and id ~= "rifle_ammo" and id ~= "pistol_ammo" and id ~= "shotgun_ammo" and id ~= "medkit" then
                 Inv.transfer(pinv, tinv, id, pinv:count(id))
             end
         end
