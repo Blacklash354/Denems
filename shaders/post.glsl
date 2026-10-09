@@ -41,7 +41,7 @@ vec4 effect(vec4 color, Image tex, vec2 uv, vec2 sc) {
     float tube = 1.0;
     if (crt > 0.0 && optic < 0.5) {
         vec2 cc = uv * 2.0 - 1.0;
-        cc += cc * (cc.yx * cc.yx) * 0.055 * crt;
+        cc += cc * (cc.yx * cc.yx) * 0.02 * crt;
         p = cc * 0.5 + 0.5;
         vec2 q = abs(cc) - 0.94;
         tube = (1.0 - smoothstep(0.0, 0.012, length(max(q, 0.0)) - 0.06)) * step(abs(cc.x), 1.0) * step(abs(cc.y), 1.0);

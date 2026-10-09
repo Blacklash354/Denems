@@ -8,14 +8,16 @@ Rd.STATIONS = {
     { freq = "41.3 MHz", name = "EMERGENCY BROADCAST", always = true,
       text = "...KRRRZZ... THIS IS THE CIVIL DEFENCE NETWORK... REMAIN INDOORS... DO NOT ATTEMPT TO TRAVEL... THE FALLOUT CLOUD IS... ...KRRR... REPEAT, REMAIN INDOORS..." },
     { freq = "44.0 MHz", name = "TOWER SEVEN", always = true, reveal = "tower",
-      text = "......KRRRRR..... IF ANYONE CAN HEAR THIS... TOWER SEVEN... NORTH-EAST OF THE CHECKPOINT... REPEAT... TOWER SEVEN... WE HAVE POWER... ...KSSSHH..." },
-    { freq = "46.6 MHz", name = "MILITARY NET", always = true, reveal = "base",
-      text = "...ZZT... ARMOUR GROUP KRASNOYE TO ALL UNITS... THE BASE IS LOST... ONE T-34 STILL PATROLS THE WESTERN ROAD... ITS CREW STOPPED ANSWERING THREE WEEKS AGO... ...KRRK..." },
-    { freq = "38.9 MHz", name = "HUNTER", always = true, reveal = "forest", flag = "cabin_hint",
-      text = "...SSHHH... ...THE CABIN BY THE RIVER... EAST, PAST THE BROKEN BRIDGE... I LEFT FUEL AND FOOD... THE HOUNDS DON'T COME NEAR THE FIRE... ...KRRRR..." },
-    { freq = "51.2 MHz", name = "NUMBERS", needStage = 5, reveal = "bunker",
-      text = "...SEVEN... FOUR... NINE... OBJECT 12 BENEATH THE HILL SOUTH-WEST OF THE BASE... THE DOOR IS OPEN... SEVEN... FOUR... NINE..." },
-    { freq = "57.0 MHz", name = "UNKNOWN SIGNAL", needStage = 7, reveal = "plant",
+      text = "......KRRRRR..... IF ANYONE CAN HEAR THIS... TOWER SEVEN... ON THE HILL NORTH-EAST OF ZARECHNY... REPEAT... TOWER SEVEN... WE HAVE POWER... ...KSSSHH..." },
+    { freq = "46.6 MHz", name = "MILITARY NET", always = true, reveal = "airfield",
+      text = "...ZZT... ARMOUR GROUP KRASNOYE TO ALL UNITS... THE BASE IS LOST... HOLD THE AIRFIELD EAST OF THE RIVER... SHOOT LOOTERS ON SIGHT... ...KRRK..." },
+    { freq = "38.9 MHz", name = "HUNTER", always = true, reveal = "forest",
+      text = "...SSHHH... ...THE CABIN IN THE BIG FOREST... EAST, PAST THE BROKEN BRIDGE... I LEFT FUEL AND FOOD... KEEP THE FIRE BURNING... ...KRRRR..." },
+    { freq = "49.5 MHz", name = "SURVIVORS", always = true, reveal = "town",
+      text = "...KSSH... TO ANYONE OUT THERE... PERVOMAISK, WEST ON THE OLD ROAD... WE HAVE A FIRE AND A ROOF... BRING FOOD IF YOU CAN... ...KRRZ..." },
+    { freq = "51.2 MHz", name = "NUMBERS", needStage = 3, reveal = "bunker",
+      text = "...SEVEN... FOUR... NINE... OBJECT 12 BENEATH THE HILLS NORTH-WEST OF THE BASE... THE DOOR IS OPEN... SEVEN... FOUR... NINE..." },
+    { freq = "57.0 MHz", name = "UNKNOWN SIGNAL", needStage = 5, reveal = "plant",
       text = "...KZZZZ... ...  ... THE REACTOR SINGS... COME TO THE CONTROL BLOCK... THE CARD OPENS THE DOOR... WE ARE STILL HERE... ...WE ARE STILL HERE..." },
 }
 
@@ -99,10 +101,6 @@ function Rd.update(dt)
     if n > 40 and s.reveal and not s.revealedOnce then
         s.revealedOnce = true
         G.missions.reveal(s.reveal)
-        if s.flag == "cabin_hint" then
-            local o = G.missions.opt("cabin")
-            o.shown = true
-        end
     end
 end
 

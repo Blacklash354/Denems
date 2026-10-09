@@ -1,5 +1,5 @@
--- Life of the Zone: anomalies (electro discharges, gravitational vortexes) with a beeping detector,
--- crows circling over dead places, and distant gunfire / howls / explosions.
+-- Life of the frozen land: crows circling over dead places, and distant gunfire, wolves and
+-- artillery somewhere out in the snow.
 local U = require("src.utils")
 local R = require("src.engine.renderer")
 local MB = require("src.engine.meshbuilder")
@@ -20,7 +20,11 @@ function A.init(game)
     A.crowWing = mb:build()
     A.mats = {}
     -- flocks over the dead places
-    local spots = { { -196, 260, 30 }, { -300, -60, 45 }, { 120, -480, 55 }, { -255, -335, 30 }, { 305, -250, 70 }, { 20, 95, 25 } }
+    local spots = {}
+    for _, id in ipairs({ "city", "industrial", "plant", "base", "tower", "checkpoint", "kolkhoz", "town", "airfield" }) do
+        local l = G.world[id]
+        if l then spots[#spots + 1] = { l.x, l.z, 35 + (l.r or 50) * 0.08 } end
+    end
     local rng = U.rng(5)
     for _, s in ipairs(spots) do
         for i = 1, 4 do
@@ -32,96 +36,10 @@ function A.init(game)
     A.detectorT = 0
 end
 
-local function hurtPlayer(amount, kind)
-    local pl = G.player
-    if pl.frameName == "world" and pl.mode ~= "dead" then pl.hurt(amount, kind) end
-end
-
 function A.update(dt)
     A.t = A.t + dt
     local pl = G.player
     local px, py, pz = pl.feetWorld()
-    local E = G.effects
-    local nearest = 1e9
-    for _, an in ipairs(G.world.anomalies) do
-        local d = U.dist2(px, pz, an.x, an.z)
-        nearest = math.min(nearest, d - an.r)
-        an.cool = math.max(0, an.cool - dt)
-        if d < 120 then
-            if an.kind == "electro" then
-                -- idle crackle: rising sparks, a pulsing core and jumping arcs
-                for k = 1, 3 do
-                    if math.random() < dt * 10 then
-                        local a, r = math.random() * 6.28, math.random() * an.r
-                        E.spawn(an.x + math.cos(a) * r, an.y + 0.1, an.z + math.sin(a) * r, 0, 1.5 + math.random(), 0, 0.5, 0.06, 0, 0.5, 0.75, 1, 1, true)
-                    end
-                end
-                if math.random() < dt * 4 then
-                    E.spawn(an.x, an.y + 1.0, an.z, 0, 0, 0, 0.25, 0.6 + math.random() * 0.5, 2, 0.35, 0.55, 1, 0.5, true)
-                end
-                if math.random() < dt * 3 then
-                    -- a crooked arc between two points of the field
-                    local a1, a2 = math.random() * 6.28, math.random() * 6.28
-                    local x1, z1 = an.x + math.cos(a1) * an.r * 0.8, an.z + math.sin(a1) * an.r * 0.8
-                    local x2, z2 = an.x + math.cos(a2) * 0.4, an.z + math.sin(a2) * 0.4
-                    local segs = 6
-                    for k = 0, segs - 1 do
-                        local t0 = k / segs
-                        local px = U.lerp(x1, x2, t0) + (math.random() - 0.5) * 0.6
-                        local pz = U.lerp(z1, z2, t0) + (math.random() - 0.5) * 0.6
-                        local py = an.y + 0.2 + math.sin(t0 * math.pi) * 1.4 + (math.random() - 0.5) * 0.3
-                        E.spawn(px, py, pz, 0, 0, 0, 0.1, 0.14, 0, 0.75, 0.88, 1, 1, true)
-                    end
-                    E.flash(an.x, an.y + 1, an.z, 6, 0.4, 0.6, 1, 0.8, 0.08)
-                end
-                if math.random() < dt * 0.25 then
-                    E.flash(an.x, an.y + 1, an.z, 8, 0.4, 0.6, 1, 1.5, 0.12)
-                    if G.audio then G.audio.play("zap", { x = an.x, y = an.y + 1, z = an.z, volume = 0.5 }) end
-                end
-                -- discharge on anything that steps in
-                local inside = d < an.r and pl.frameName == "world" and math.abs(py - an.y) < 3
-                local tankIn = U.dist2(G.tank.x, G.tank.z, an.x, an.z) < an.r + 2
-                if (inside or tankIn) and an.cool <= 0 then
-                    an.cool = 2.2
-                    for i = 1, 18 do
-                        E.spawn(an.x, an.y + 1, an.z, (math.random() - 0.5) * 10, math.random() * 8, (math.random() - 0.5) * 10, 0.3, 0.08, 0, 0.6, 0.8, 1, 1, true, 0.5, 4)
-                    end
-                    E.flash(an.x, an.y + 1.5, an.z, 18, 0.5, 0.7, 1, 4, 0.25)
-                    if G.audio then G.audio.play("zap", { x = an.x, y = an.y + 1, z = an.z, big = true }) end
-                    if inside then hurtPlayer(28, "anomaly") end
-                    if tankIn then G.tank.damage(4, "anomaly") end
-                    if G.camera then G.camera.shake(0.5) end
-                end
-            else
-                -- vortex: swirling snow, pulls things in, crushes at the centre
-                for i = 1, 4 do
-                    if math.random() < dt * 25 then
-                        local a, r = A.t * 3 + math.random() * 6.28, an.r * (0.3 + math.random() * 0.7)
-                        local p = E.spawn(an.x + math.cos(a) * r, an.y + math.random() * 3, an.z + math.sin(a) * r,
-                            -math.sin(a) * 5, 0.5, math.cos(a) * 5, 0.8, 0.15, 0.1, 0.85, 0.88, 0.95, 0.5, false, 1, -0.5)
-                    end
-                end
-                if d < an.r * 2 and pl.frameName == "world" and pl.mode == "walk" then
-                    local pull = (1 - d / (an.r * 2)) * 3.5
-                    pl.vx = pl.vx + (an.x - px) / math.max(d, 0.1) * pull * dt * 4
-                    pl.vz = pl.vz + (an.z - pz) / math.max(d, 0.1) * pull * dt * 4
-                    if d < 1.4 and an.cool <= 0 then
-                        an.cool = 1.5
-                        hurtPlayer(25, "anomaly")
-                        for i = 1, 10 do E.snowPuff(an.x, an.y, an.z, 2) end
-                        if G.audio then G.audio.play("burrow", { x = an.x, y = an.y, z = an.z }) end
-                    end
-                end
-            end
-        end
-    end
-    -- detector: beeps faster the closer an anomaly is
-    A.detectorT = A.detectorT - dt
-    A.nearAnomaly = nearest
-    if nearest < 18 and pl.frameName == "world" and A.detectorT <= 0 then
-        A.detectorT = U.clamp(nearest / 12, 0.08, 1.2)
-        if G.audio then G.audio.play("detector", { volume = 0.5 }) end
-    end
     -- crows
     for _, c in ipairs(A.crows) do
         c.a = c.a + dt * c.sp

@@ -88,6 +88,103 @@ function T.init()
         end
         return cr, cg, cb
     end)
+    -- road surface: u runs across the road (edge to edge), v along it. Packed snow over asphalt,
+    -- dark wheel ruts in each lane, a faint dashed centre line and snowy shoulders
+    make("road", 64, function(x, y, s, r)
+        local u = (x + 0.5) / s
+        local n = tfbm(x, y, s, 4, 3, 81)
+        local fine = tfbm(x, y, s, 16, 2, 82)
+        local v = 0.6 + n * 0.14 + fine * 0.08
+        local cr, cg, cb = v * 0.94, v * 0.94, v * 0.96
+        local function rut(c, w) return math.max(0, 1 - math.abs(u - c) / w) end
+        local ruts = math.max(rut(0.21, 0.07), rut(0.37, 0.07), rut(0.63, 0.07), rut(0.79, 0.07))
+        local wet = ruts * (0.55 + n * 0.5)
+        if wet > 0.35 then
+            local k = 0.24 + fine * 0.1 + (r:next() > 0.92 and 0.05 or 0)
+            cr, cg, cb = U.lerp(cr, k, wet), U.lerp(cg, k * 0.98, wet), U.lerp(cb, k * 0.97, wet)
+        end
+        if math.abs(u - 0.5) < 0.018 and (y % 32) < 18 and n > 0.35 then cr, cg, cb = cr * 0.75 + 0.2, cg * 0.75 + 0.2, cb * 0.7 + 0.12 end
+        local edge = math.min(u, 1 - u)
+        if edge < 0.07 then
+            local k = 1 - edge / 0.07
+            cr, cg, cb = U.lerp(cr, 0.84 + fine * 0.08, k), U.lerp(cg, 0.86 + fine * 0.08, k), U.lerp(cb, 0.9 + fine * 0.08, k)
+        end
+        return cr, cg, cb
+    end)
+    -- dirt track: two frozen ruts with a snowy hump between them
+    make("track", 64, function(x, y, s, r)
+        local u = (x + 0.5) / s
+        local n = tfbm(x, y, s, 4, 3, 83)
+        local fine = tfbm(x, y, s, 16, 2, 84)
+        local function rut(c, w) return math.max(0, 1 - math.abs(u - c) / w) end
+        local k = math.max(rut(0.28, 0.12), rut(0.72, 0.12)) * (0.6 + n * 0.6)
+        local v = 0.78 + n * 0.12 + fine * 0.06
+        local cr, cg, cb = v * 0.97, v * 0.98, v
+        if k > 0.3 then
+            local d = 0.3 + fine * 0.12
+            cr, cg, cb = U.lerp(cr, d * 1.1, k), U.lerp(cg, d * 0.98, k), U.lerp(cb, d * 0.85, k)
+        end
+        return cr, cg, cb
+    end)
+    -- Soviet prefab facade: large panels with dark seams and rust/water streaks
+    make("panel", 64, function(x, y, s, r)
+        local n = tfbm(x, y, s, 4, 3, 85)
+        local v = 0.62 + n * 0.14 + r:next() * 0.04
+        local seam = (x % 32 == 0) or (y % 32 == 0)
+        if seam then v = v * 0.55 end
+        local streak = tnoise(x, 0, s, 16, 86)
+        if streak > 0.7 and (y % 32) > 6 then v = v * (0.88 - (streak - 0.7)) end
+        local stain = tfbm(x, y, s, 2, 2, 87)
+        if stain > 0.66 then return v * 0.92, v * 0.86, v * 0.78 end
+        return v, v * 0.99, v * 0.97
+    end)
+    -- faded wallpaper with a repeating pattern, torn in places
+    make("wallpaper", 32, function(x, y, s, r)
+        local n = tfbm(x, y, s, 4, 3, 88)
+        local motif = ((x % 8 == 3 or x % 8 == 4) and (y % 8 == 2 or y % 8 == 5)) and -0.07 or 0
+        local stripe = (x % 16 < 2) and -0.04 or 0
+        local v = 0.58 + n * 0.1 + motif + stripe
+        if n > 0.72 then local c = 0.5 + r:next() * 0.06 return c, c * 0.97, c * 0.92 end
+        return v * 0.95, v * 0.88, v * 0.7
+    end)
+    make("linoleum", 32, function(x, y, s, r)
+        local n = tfbm(x, y, s, 4, 3, 89)
+        local check = ((math.floor(x / 8) + math.floor(y / 8)) % 2 == 0) and 0.05 or -0.03
+        local v = 0.42 + n * 0.12 + check + r:next() * 0.03
+        return v * 1.05, v * 0.82, v * 0.62
+    end)
+    make("tile", 32, function(x, y, s, r)
+        if x % 8 == 0 or y % 8 == 0 then return 0.42, 0.44, 0.44 end
+        local v = 0.7 + tnoise(x, y, s, 4, 90) * 0.12 + r:next() * 0.03
+        return v * 0.9, v * 0.97, v
+    end)
+    -- quilted army winter cloth (khaki/olive) for coats and sleeves
+    make("quilt", 32, function(x, y, s, r)
+        local seam = (y % 6 == 0) and -0.07 or 0
+        local v = 0.4 + tnoise(x, y, s, 8, 91) * 0.1 + seam + r:next() * 0.03
+        return v * 0.92, v * 0.95, v * 0.72
+    end)
+    -- knitted glove / mitten
+    make("knit", 16, function(x, y, s, r)
+        local v = 0.3 + (((x + y) % 2 == 0) and 0.05 or 0) + r:next() * 0.05
+        return v, v * 0.95, v * 0.88
+    end)
+    -- a tiny face: brows, eyes, nose shadow, mouth on skin
+    make("face", 16, function(x, y, s, r)
+        local cr, cg, cb = 0.78, 0.6, 0.5
+        local n = r:next() * 0.04
+        cr, cg, cb = cr + n, cg + n, cb + n
+        if y == 5 and (x >= 3 and x <= 6 or x >= 9 and x <= 12) then return 0.25, 0.18, 0.14 end   -- brows
+        if y == 7 and (x == 4 or x == 5 or x == 10 or x == 11) then return 0.12, 0.1, 0.1 end      -- eyes
+        if (y == 9 or y == 10) and (x == 7 or x == 8) then return cr * 0.82, cg * 0.78, cb * 0.75 end -- nose
+        if y == 12 and x >= 5 and x <= 10 then return 0.45, 0.25, 0.22 end                          -- mouth
+        if y >= 13 then return cr * 0.85, cg * 0.82, cb * 0.8 end                                     -- stubble
+        return cr, cg, cb
+    end)
+    make("glass", 16, function(x, y, s, r)
+        local v = 0.25 + tnoise(x, y, s, 4, 92) * 0.15 + ((x == y or x + 1 == y) and 0.2 or 0)
+        return v * 0.8, v * 0.9, v * 1.05
+    end)
     make("ground", 32, function(x, y, s, r)
         local n = tfbm(x, y, s, 4, 3, 3)
         local v = 0.35 + n * 0.25 + r:next() * 0.05

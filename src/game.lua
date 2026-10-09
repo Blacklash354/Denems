@@ -221,7 +221,6 @@ local function registerWorld()
     local W = G.world
     for _, c in ipairs(W.containers) do
         c.initialLoot = U.copy(c.loot)
-        c.village = U.dist2(c.x, c.z, W.village.x, W.village.z) < W.village.r
         I.add({ space = "exterior", pos = { c.x, c.y + 0.6, c.z }, radius = 0.6, range = 2.4, hold = 1.1,
                 enabled = function() return not c.searched end,
                 prompt = function() return "SEARCH " .. c.label end,
@@ -278,7 +277,7 @@ local function registerWorld()
     if W.signalConsole then
         local t = W.signalConsole
         I.add({ space = "exterior", pos = { t.x, t.y, t.z }, radius = 0.8, range = 2.6, prompt = "ACTIVATE SIGNAL CONSOLE",
-                enabled = function() return G.missions.stage >= 8 end,
+                enabled = function() return G.missions.stage >= 6 end,
                 use = function() Game.ending() end })
     end
     for i in ipairs(G.humans.list) do
@@ -368,10 +367,6 @@ function Game.searchContainer(c)
     if #left == 0 then c.searched = true end
     if #got > 0 then G.ui.notify("FOUND: " .. table.concat(got, ", ")) else G.ui.notify("NOTHING YOU CAN CARRY") end
     if #left > 0 then G.ui.notify("NO ROOM - SOME ITEMS LEFT BEHIND") end
-    if c.village and not c.countedVillage then
-        c.countedVillage = true
-        G.missions.event("searched", { village = true })
-    end
     G.audio.play("pickup", {})
 end
 
@@ -427,7 +422,7 @@ end
 
 function Game.talk(h)
     local H = G.humans
-    local lines = (h.key and H.LINES[h.key]) or { "Good hunting, stalker. Stay warm.", "The Zone gives, the Zone takes." }
+    local lines = (h.key and H.LINES[h.key]) or { "Stay warm, friend. The cold takes the careless first.", "Nobody is coming for us. We keep the fire going anyway." }
     h.talkIdx = ((h.talkIdx or 0) % #lines) + 1
     local body = lines[h.talkIdx]
     if not h.talked and h.key and H.GIFTS[h.key] then
@@ -536,7 +531,6 @@ function Game.newGame()
     G.missions.reset()
     G.environment.time = 15.5
     G.weather.load({ intensity = 0.3, target = 0.3, phaseT = 120 })
-    G.creatures.load(nil)
     G.enemies.reset()
     G.humans.reset()
     G.effects.clear()
@@ -545,8 +539,7 @@ function Game.newGame()
     for _, d in ipairs(W.doors) do d.open = false d.unlocked = false d.angle = 0 d.box.enabled = true end
     Game.playTime = 0
     Game.start()
-    G.ui.objective("MAIN OBJECTIVE", G.missions.current().text)
-    Game.helpT = 18
+    Game.helpT = nil
 end
 
 function Game.loadGame()
@@ -653,7 +646,6 @@ function Game.update(dt)
         G.tank.update(dt)
         Pl.update(dt)
         G.weapons.update(dt)
-        G.creatures.update(dt)
         G.enemies.update(dt)
         G.humans.update(dt)
         G.radar.update(dt)
@@ -700,7 +692,7 @@ function Game.update(dt)
     if Pl.mode == "seat" and Pl.station and Pl.station.name == "gunner" and G.stations.gunner.optic then
         fx.brightness = 1.15
     end
-    Game.musicDuck = (G.creatures.nearestThreat(Pl.x, Pl.z, 40) and 0.3 or 1)
+    Game.musicDuck = (G.humans.nearestThreat(Pl.x, Pl.z, 60) and 0.3 or 1)
 end
 
 ---------------------------------------------------------------------------
@@ -743,12 +735,6 @@ function Game.drawWorld()
             if U.dist2(cam.x, cam.z, e.x, e.z) < 150 then shadows[#shadows + 1] = { x = e.x, z = e.z, yaw = e.yaw, l = 4.3, w = 2.5, a = 0.75 } end
         end
     end
-    for _, c in ipairs(G.creatures.list) do
-        if c.state ~= "buried" and c.state ~= "dead" and U.dist2(cam.x, cam.z, c.x, c.z) < 80 then
-            local r = c.def.radius * 1.6
-            shadows[#shadows + 1] = { x = c.x, z = c.z, y = c.underground and c.y or nil, yaw = c.yaw, l = r * 1.4, w = r, a = 0.6 }
-        end
-    end
     for _, h in ipairs(G.humans.list) do
         if U.dist2(cam.x, cam.z, h.x, h.z) < 70 then
             local dead = h.state == "dead"
@@ -758,7 +744,6 @@ function Game.drawWorld()
     G.effects.drawShadows(shadows)
     G.tank.draw(cam)
     G.enemies.draw()
-    G.creatures.draw()
     G.humans.draw()
     if not G.environment.underground then G.ambience.draw() end
     G.effects.drawCasings()
@@ -820,9 +805,7 @@ function Game.drawDead()
     local UI = G.ui
     local causes = { cold = "YOU FROZE TO DEATH", radiation = "RADIATION SICKNESS TOOK YOU", fall = "YOU FELL",
                      tank = "YOUR TANK WAS DESTROYED WITH YOU INSIDE", tank_lost = "WITHOUT THE TANK, THE WINTER TAKES YOU",
-                     hound = "TORN APART BY FROST HOUNDS", crawler = "THE CRAWLERS GOT YOU", burrower = "DRAGGED BENEATH THE SNOW",
-                     mutant = "CRUSHED BY THE MUTANT", zombie = "THE WALKERS DRAGGED YOU DOWN", spider = "THE SPIDERS FED WELL", explosion = "KILLED BY AN EXPLOSION", shot = "SHOT DEAD",
-                     anomaly = "THE ANOMALY TORE YOU APART" }
+                     explosion = "KILLED BY AN EXPLOSION", shot = "SHOT DEAD" }
     lg.setColor(0, 0, 0, 0.5)
     lg.rectangle("fill", 0, 0, UI.VW, UI.VH)
     UI.text("YOU ARE DEAD", 0, 110, UI.COL.warn, UI.fontXL, "center", UI.VW)

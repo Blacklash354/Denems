@@ -126,7 +126,7 @@ function D.destroy(obj, hx, hy, hz)
         local d = U.dist3(px, py, pz, cx, cy, cz)
         if d < 60 then G.camera.shake(0.6 * (1 - d / 60)) end
     end
-    if G.creatures then G.creatures.noise(cx, cy, cz, obj.kind == "building" and 150 or 50, "explosion") end
+    if G.humans then G.humans.noise(cx, cy, cz, obj.kind == "building" and 150 or 50) end
     W.rebuildChunkD(obj.chunk)
 end
 

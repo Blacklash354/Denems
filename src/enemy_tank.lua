@@ -105,9 +105,12 @@ end
 function E.init(game)
     G = game
     E.models = buildModels()
+    local W = G.world
+    local A, Pn = W.airfield, W.plant
     E.defs = {
-        { id = 1, name = "T-34 PATROL", route = { { -150, -40 }, { -205, -200 }, { -250, -320 }, { -205, -200 }, { -100, -60 }, { -10, -70 } } },
-        { id = 2, name = "PLANT GUARD", route = { { 60, -420 }, { 130, -432 }, { 205, -410 }, { 150, -380 }, { 70, -390 } } },
+        { id = 1, name = "T-34 PATROL", route = { { -190, -500 }, { -500, -600 }, { -850, -700 }, { -1040, -742 }, { -850, -700 }, { -500, -600 } } },
+        { id = 2, name = "PLANT GUARD", route = { { Pn.x - 40, Pn.z + 115 }, { Pn.x + 60, Pn.z + 110 }, { Pn.x + 120, Pn.z + 60 }, { Pn.x + 60, Pn.z + 110 } } },
+        { id = 3, name = "AIRFIELD ARMOUR", route = { { A.x - 200, A.z + 70 }, { A.x + 200, A.z + 70 }, { A.x + 120, A.z + 20 }, { A.x - 120, A.z + 20 } } },
     }
     E.reset()
 end
@@ -387,7 +390,7 @@ function E.update(dt)
             local dx, dy, dz, l = U.norm3(t.x - cam.x, t.y + 1.5 - cam.y, t.z - cam.z)
             if dx * cam.fx + dy * cam.fy + dz * cam.fz > 0.8 and not G.world.rayTerrain(cam.x, cam.y, cam.z, dx, dy, dz, l - 3) then
                 t.spotted = true
-                if G.ui then G.ui.warning("ENEMY ARMOR SPOTTED") end
+                if G.ui then G.ui.notify("ENEMY ARMOUR") end
                 if G.audio then G.audio.play("sting", {}) end
                 if G.missions then G.missions.event("enemy_spotted", t) end
             end
@@ -445,7 +448,7 @@ function E.destroy(t)
     G.effects.explosion(t.x, t.y + 1.5, t.z, 2.5)
     G.effects.explosion(t.x, t.y + 2.5, t.z, 1.5)
     if G.audio then G.audio.play("explosion", { x = t.x, y = t.y, z = t.z, big = true }) end
-    if G.ui then G.ui.warning("ENEMY TANK DESTROYED") end
+    if G.ui then G.ui.notify("ENEMY TANK DESTROYED") end
     if G.missions then G.missions.event("enemy_destroyed", t) end
     G.world.fires[#G.world.fires + 1] = { x = t.x, y = t.y + 1.5, z = t.z, r = 6 }
 end

@@ -1,5 +1,6 @@
 -- Autopilot drive test: love . --drivetest
--- Drives the tank from the start to the Radio Tower with simulated driver input and logs progress.
+-- Drives the tank from the start up the highway to the checkpoint and the garage cooperative
+-- with simulated driver input and logs progress (time, fuel, hull).
 local A = { keys = {} }
 local G
 love.keyboard.isDown = function(...)
@@ -8,7 +9,7 @@ love.keyboard.isDown = function(...)
 end
 love.mouse.isDown = function() return false end
 
-local route = { { 42, 430 }, { 30, 250 }, { 20, 95 }, { 0, -80 }, { 55, -245 }, { 180, -262 }, { 290, -250 } }
+local route = {}
 local wp, t, lastCheck, lastX, lastZ, logT = 1, 0, 0, 0, 0, 0
 local stuckCount = 0
 
@@ -21,7 +22,26 @@ function A.start(game)
     G.game.godMode = true
     local T, Pl = G.tank, G.player
     T.comp.trackR = 100
+    T.fuel = 100
+    -- follow the highway centre line from the start to the garages
+    local path = G.world.roadPaths[1]
+    for i = 1, #path, 6 do
+        local p = path[i]
+        if p.z < T.z - 10 and p.z > 560 then route[#route + 1] = { p.x, p.z } end
+    end
+    route[#route + 1] = { G.world.garages.x - 40, G.world.garages.z + 5 }
     Pl.enterSeat(G.stations.driver)
+    local dmg = T.damage
+    T.damage = function(amount, kind, ...)
+        if amount > 1 then
+            log(string.format("damage %.1f %s at (%.0f,%.0f) speed %.1f", amount, tostring(kind), T.x, T.z, T.speed))
+            for _, b in ipairs(G.world.colliders:query(T.x - 6, T.z - 6, T.x + 6, T.z + 6, {})) do
+                log(string.format("   box %.1f..%.1f x %.1f..%.1f z %.1f..%.1f  obj %s tree %s", b[1], b[4], b[2], b[5], b[3], b[6],
+                    b.obj and b.obj.kind or "-", tostring(b.tree)))
+            end
+        end
+        return dmg(amount, kind, ...)
+    end
     T.startEngine()
     lastX, lastZ = T.x, T.z
 end
@@ -33,13 +53,13 @@ function A.update(dt)
     if t < 2.5 then return end
     local target = route[wp]
     if not target then
-        log("ARRIVED at tower area in", math.floor(t), "s  fuel", math.floor(T.fuel), "hull", math.floor(T.comp.hull))
+        log("ARRIVED at the garages in", math.floor(t), "s  fuel", math.floor(T.fuel), "hull", math.floor(T.comp.hull))
         love.event.quit()
         return
     end
     local dx, dz = target[1] - T.x, target[2] - T.z
     local d = math.sqrt(dx * dx + dz * dz)
-    if d < 14 then wp = wp + 1 log("waypoint", wp - 1, "reached at t", math.floor(t), "fuel", string.format("%.1f", T.fuel)) return end
+    if d < 14 then wp = wp + 1 if wp % 5 == 0 then log("waypoint", wp - 1, "/", #route, "reached at t", math.floor(t), "fuel", string.format("%.1f", T.fuel)) end return end
     local want = math.atan2(dz, dx)
     local diff = (want - T.yaw + math.pi) % (2 * math.pi) - math.pi
     A.keys = {}

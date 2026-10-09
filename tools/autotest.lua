@@ -1,4 +1,6 @@
--- Automated playtest: drives the game with simulated input and captures screenshots.
+-- Automated playtest: drives the game with simulated input and captures screenshots:
+-- the tank and its stations, the places of the open world, stairs in a panel block, clothing
+-- against the cold, factions fighting, squads on the move, reloads, save/load and the ending.
 -- Run: love . --autotest   (screenshots land in the LÖVE save directory under autotest/)
 local A = { keys = {}, mouse = {} }
 local U = require("src.utils")
@@ -114,21 +116,27 @@ function A.start(game)
     S(0.4, nil, "18_mg_firing")
     S(0.6, function() A.mouse[1] = false log("mg belt", T.mgBelt, "heat", T.mgHeat) end)
     S(0.2, function() Pl.leaveSeat() end)
-    -- 8: locations
-    local function visit(name, x, z, yaw, pitch, wait)
-        S(0.2, function() teleport(x, z, yaw, pitch) end)
-        S(wait or 2.0, nil, name)
+    -- 8: places of the open world
+    local I = require("src.interaction")
+    local function visit(name, id, dist, yawOff, pitch)
+        S(0.2, function()
+            local l = W[id]
+            local a = (yawOff or 0.7)
+            local x, z = l.x + math.cos(a) * dist, l.z + math.sin(a) * dist
+            teleport(x, z, 0, pitch or 0.05)
+            lookAt(l.x, W.height(l.x, l.z) + 3, l.z)
+        end)
+        S(1.6, nil, name)
     end
-    visit("19_village", -150, 300, math.pi, 0.05)
-    visit("20_village_church", -196, 285, -math.pi / 2, 0.2)
-    visit("21_industrial", -250, -20, math.pi + 0.3, 0.1)
-    visit("22_factory_inside", -320, -62, 0, 0.05)
-    visit("23_checkpoint", 20, 130, -math.pi / 2, 0.0)
-    visit("24_forest", 300, 200, 0.5, 0.05)
-    visit("25_military_base", -180, -250, math.pi * 0.8, 0.05)
-    visit("26_radio_tower", 250, -230, -0.3, 0.35)
-    visit("27_nuclear_plant", 130, -400, -math.pi / 2, 0.15)
-    visit("28_control_block_door", 160, -458, 0, 0.0)
+    visit("19_kolkhoz", "kolkhoz", 70)
+    visit("20_town", "town", 90, 2.0)
+    visit("21_city", "city", 120, -0.4)
+    visit("22_garages", "garages", 60, 1.5)
+    visit("23_airfield", "airfield", 150, 1.8)
+    visit("24_industrial", "industrial", 90, 0.3)
+    visit("25_military_base", "base", 95, 0.9)
+    visit("26_radio_tower", "tower", 60, 2.5, 0.3)
+    visit("27_nuclear_plant", "plant", 140, 1.6, 0.15)
     S(0.2, function()
         local b = W.bunkerInfo
         Pl.placeWalking("world", b.ox + 2.5 * 2.5, b.oy + 0.05, b.oz + 2.5 * 8.5, 0)
@@ -138,136 +146,131 @@ function A.start(game)
     S(0.1, function() log("underground", G.environment.underground, "cam", G.camera.x, G.camera.y, G.camera.z) end)
     S(0.2, function() Pl.flashlight = false teleport(W.bunker.x + 6, W.bunker.z + 6, -2.4, 0.05) end)
     S(1.5, nil, "30_bunker_entrance")
-    -- 9: creatures
+    -- 9: climbing the stairs of a panel block by walking (real collision, simulated keys)
     S(0.2, function()
-        teleport(-195, 300, 0, 0)
-        local g = G.creatures.groups[1]
-        log("creature groups", #G.creatures.groups, "list", #G.creatures.list)
+        local blk = W.blocks[1]
+        A.blk = blk
+        local c = blk.ctx
+        local sx = -blk.sections * 12 / 2
+        -- stand at the foot of the first flight (left lane), facing up the stairs (+z local)
+        local x, y, z = c:toWorld(sx + 5.2, 0.4, -5.5 + 0.3 + 1.2)
+        local fx, _, fz = c:toWorld(sx + 5.2, 0.4, 5)
+        Pl.placeWalking("world", x, y + 0.05, z, math.atan2(fz - z, fx - x))
+        Pl.pitch = 0.1
+        A.stairY0 = y
+        log("block at", blk.x, blk.z, "sections", blk.sections, "floors", blk.floors)
     end)
+    S(0.4, nil, "31_stairs_bottom")
+    S(1.6, function() press("w") end)
+    S(0.1, function() press() log("after first flight: y gain", Pl.y - A.stairY0, "(1.4 expected)") end, "32_half_landing")
+    S(0.1, function()
+        -- turn round onto the second flight (right lane, back towards the front facade)
+        local c = A.blk.ctx
+        local sx = -A.blk.sections * 12 / 2
+        local x, y, z = c:toWorld(sx + 6.8, 0, -0.5)
+        local tx, _, tz = c:toWorld(sx + 6.8, 0, -6)
+        Pl.x, Pl.z = x, z
+        Pl.yaw = math.atan2(tz - z, tx - x)
+    end)
+    S(1.6, function() press("w") end)
+    S(0.1, function() press() log("after second flight: y gain", Pl.y - A.stairY0, "(2.8 expected = first floor)") end, "33_first_floor_landing")
+    -- 10: clothing and the cold
+    S(0.2, function()
+        local Inv = G.inventory
+        log("insulation start", Inv.insulation())
+        Inv.player:add("sheepskin", 1) Inv.player:add("valenki", 1) Inv.player:add("ushanka", 1)
+        Inv.use("sheepskin") Inv.use("valenki") Inv.use("ushanka")
+        log("insulation dressed", Inv.insulation(), "torso", Inv.worn.torso, "old jacket in pack", Inv.player:count("telogreika"))
+        Game.state = "inventory"
+    end, nil)
+    S(0.3, nil, "34_inventory_clothes")
+    S(0.2, function() Game.state = "play" teleport(W.START.x + 60, W.START.z - 80, 0, 0) G.weather.intensity = 1 G.weather.target = 1 G.environment.time = 2 Pl.warmth = 100 end)
+    S(10, function() end)
+    S(0.1, function()
+        log("warmth after 10s night blizzard, dressed", Pl.warmth)
+        local Inv = G.inventory
+        for _, slot in ipairs(Inv.SLOTS) do Inv.worn[slot] = nil end
+        Pl.warmth = 100
+    end)
+    S(10, function() end)
+    S(0.1, function()
+        log("warmth after 10s night blizzard, naked", Pl.warmth)
+        G.inventory.worn = { head = "wool_cap", torso = "telogreika", legs = "trousers", hands = "gloves", feet = "boots" }
+        G.weather.intensity = 0.3 G.weather.target = 0.3 G.environment.time = 13 Pl.warmth = 100
+    end)
+    -- 11: people fighting each other
+    S(0.2, function()
+        local H = G.humans
+        local sol, ban
+        for _, h in ipairs(H.list) do
+            if h.faction == "military" and not sol and not h.squad and h.state ~= "dead" then sol = h end
+            if h.faction == "bandit" and not ban and not h.squad and h.state ~= "dead" then ban = h end
+        end
+        A.sol, A.ban = sol, ban
+        -- put the bandit 25 m in front of the soldier, the player watches from the side
+        ban.x, ban.z = sol.x + math.cos(sol.yaw) * 25, sol.z + math.sin(sol.yaw) * 25
+        ban.y = W.height(ban.x, ban.z) ban.homeX, ban.homeZ = ban.x, ban.z
+        H.shots = 0
+        teleport(sol.x + math.cos(sol.yaw + 1.5) * 18, sol.z + math.sin(sol.yaw + 1.5) * 18, 0, 0)
+        lookAt((sol.x + ban.x) / 2, sol.y + 1, (sol.z + ban.z) / 2)
+        G.game.godMode = true
+        log("faction fight: soldier", sol.name, "vs bandit at", math.floor(U.dist2(sol.x, sol.z, ban.x, ban.z)), "m")
+    end)
+    S(2.5, nil, "35_faction_fight")
+    S(6.0, function() end)
+    S(0.1, function() log("after 8.5s: shots", G.humans.shots, "soldier", A.sol.state, A.sol.hp, "bandit", A.ban.state, A.ban.hp) end)
+    -- 12: squads walk their routes even while far away
+    S(0.1, function()
+        local sq = G.humans.squads[1]
+        A.sq0 = { sq.x, sq.z, sq.wp }
+        teleport(W.START.x, W.START.z + 10, 0, 0)
+    end)
+    S(4.0, function() end)
+    S(0.1, function()
+        local sq = G.humans.squads[1]
+        log("squad 1 moved", math.floor(U.dist2(sq.x, sq.z, A.sq0[1], A.sq0[2]) * 10) / 10, "m in 4s, waypoint", sq.wp, "members", #sq.members)
+    end)
+    -- 13: weapons - magazine goes in when the hand seats it, shotgun loads shell by shell
+    S(0.2, function()
+        local Wp = G.weapons
+        Wp.switch("smg") Wp.switchT = 0
+        Wp.mag.smg = 0
+        G.inventory.player:add("pistol_ammo", 60)
+        Wp.reload()
+        log("reload started", Wp.reloadT, "mag", Wp.mag.smg)
+    end)
+    S(0.8, nil, "36_reload_hand_on_mag")
+    S(0.1, function() log("mag mid-reload", G.weapons.mag.smg) end)
     S(3.0, function() end)
     S(0.1, function()
-        local c = G.creatures.list[1]
-        if c then
-            log("first creature", c.kind, c.state, c.x, c.z)
-            local px, pz = Pl.x, Pl.z
-            c.x, c.z = px + 7, pz
-            c.y = W.height(c.x, c.z)
-            lookAt(c.x, c.y + 0.6, c.z)
-        end
+        local Wp = G.weapons
+        log("mag after reload", Wp.mag.smg)
+        Wp.switch("shotgun") Wp.switchT = 0
+        Wp.mag.shotgun = 2
+        G.inventory.player:add("shotgun_ammo", 10)
+        Wp.reload()
     end)
-    S(0.6, nil, "31_creature")
-    S(2.0, function()
-        local c = G.creatures.list[1]
-        if c then lookAt(c.x, c.y + 0.6, c.z) end
-    end)
-    S(0.1, function()
-        local c = G.creatures.list[1]
-        if c then log("creature state after", c.state, "player hp", Pl.health) end
-        G.weapons.mag.rifle = 5
-        A.mouse[1] = true
-    end, "32_creature_attack")
-    S(0.1, function() A.mouse[1] = false end)
-    S(1.3, function() A.mouse[1] = true end)
-    S(0.1, function() A.mouse[1] = false local c = G.creatures.list[1] if c then log("creature hp", c.hp, c.state) end end)
-    -- 10: enemy tank
+    S(1.0, nil, "37_shotgun_loading")
+    S(0.1, function() log("shotgun shells after 1s", G.weapons.mag.shotgun) end)
+    S(3.0, function() end)
+    S(0.1, function() log("shotgun shells after 4s", G.weapons.mag.shotgun, "reloading", G.weapons.reloadT > 0) end)
+    -- 14: UI screens and save/load roundtrip
+    S(0.3, function() Game.state = "map" for _, l in ipairs(W.locations) do G.missions.discovered[l.id] = true end end, "38_map")
+    S(0.2, function() Game.state = "play" G.environment.time = 23 teleport(T.x + 8, T.z + 3, 0) lookAt(T.x, T.y + 1, T.z) Pl.flashlight = true end)
+    S(1.5, nil, "39_night_flashlight")
     S(0.2, function()
-        Pl.health = 100
-        local e = G.enemies.tanks[1]
-        log("enemy tank 1 at", e.x, e.z, e.state)
-        teleport(e.x + 40, e.z + 25, 0, 0.05)
-        lookAt(e.x, e.y + 1.5, e.z)
-    end)
-    S(2.0, nil, "33_enemy_tank")
-    -- 11: UI screens
-    S(0.3, function() Game.state = "map" G.missions.discovered.village = true end, "34_map")
-    S(0.3, function() Game.state = "inventory" end, "35_inventory")
-    S(0.3, function() Game.state = "play" G.environment.time = 23 teleport(T.x + 8, T.z + 3, 0) lookAt(T.x, T.y + 1, T.z) Pl.flashlight = true end)
-    S(1.5, nil, "36_night_flashlight")
-    S(0.3, function() Pl.flashlight = false G.environment.time = 14 G.weather.intensity = 1 G.weather.target = 1 end)
-    S(1.5, nil, "37_blizzard")
-    -- 12: save/load roundtrip
-    S(0.2, function()
-        G.weather.intensity = 0.3 G.weather.target = 0.3
+        Pl.flashlight = false G.environment.time = 14
+        G.inventory.worn.torso = "greatcoat"
         local ok, err = G.save.save()
         log("save", ok, err)
         T.fuel = 3
+        G.inventory.worn.torso = nil
         local ok2 = Game.loadGame()
-        log("load", ok2, "fuel restored", T.fuel)
+        log("load", ok2, "fuel restored", T.fuel, "coat restored", G.inventory.worn.torso)
     end)
-    -- 13: gameplay flow checks ------------------------------------------------
-    local I = require("src.interaction")
-    local R = require("src.engine.renderer")
-    for _, spot in ipairs({ { "village", -170, 300 }, { "industrial", -270, -30 }, { "forest", 300, 180 }, { "plant", 120, -420 }, { "base", -230, -330 } }) do
-        S(0.2, function() teleport(spot[2], spot[3], 0, 0) end)
-        S(0.5, function() log("perf", spot[1], "draws", R.stats.draws, "tris", math.floor(R.stats.tris)) end)
-    end
-    S(0.2, function() log("audio enabled", G.audio.enabled) end)
-    -- headroom in the front compartment
-    S(0.2, function() Pl.placeWalking("tank", 1.2, 0.62, 0.0, 0) T.speed = 0 press("w") end)
-    S(1.2, function() end)
-    S(0.1, function() press() log("front compartment: x", Pl.x, "height", Pl.height) end)
-    -- exterior collision with the hull
+    -- 15: repair and refuel on the tank
     S(0.2, function()
-        local x, y, z = T.frame:toWorld(0, 0, 5)
-        teleport(x, z, T.yaw + math.pi / 2 + math.pi, 0)
-        Pl.yaw = math.atan2(T.z - z, T.x - x)
-        press("w")
-    end)
-    S(2.0, function() end)
-    S(0.1, function()
-        press()
-        local lx, ly, lz = T.frame:toLocal(Pl.x, Pl.y, Pl.z)
-        log("pushing into hull: local z", lz, "(should stay > 2.2)")
-    end)
-    -- climb in through the hatch from the turret roof
-    S(0.2, function()
-        T.hatchOpen = true T.hatchAnim = 1
-        local x, y, z = T.turretWorld:toWorld(-0.2, 1.12, -0.5)
-        Pl.placeWalking("world", x, y + 0.05, z, 0)
-    end)
-    S(0.5, function()
-        local hx, hy, hz = T.turretWorld:toWorld(-0.95, 1.45, -0.75)
-        lookAt(hx, hy, hz)
-    end)
-    S(0.3, function() log("hatch prompt:", I.currentText) I.press() press("s") end)
-    S(3.5, function() end)
-    S(0.2, function() press() log("after climbing in: frame", Pl.frameName, "mode", Pl.mode, "pos", Pl.x, Pl.y, Pl.z) end)
-    -- creatures attack the tank while the player is inside
-    S(0.2, function()
-        Pl.placeWalking("tank", 0.5, 0.62, 0.5, 0)
-        local hull = T.comp.hull
-        A.hullBefore = T.comp.trackL + T.comp.trackR + T.comp.hull
-        local g = G.creatures.groups[1]
-        local C = G.creatures
-        local c = { kind = "hound", def = C.KINDS.hound, x = T.x + 6, y = T.y, z = T.z + 6, yaw = 0, hp = 90, state = "chase", timer = 0,
-                    homeX = T.x, homeZ = T.z, homeR = 10, group = g, phase = 0, speed = 0, attackT = 0, jaw = 0, hurtT = 0, alertT = 0,
-                    deathT = 0, lastSeenT = 0, pain = 0 }
-        table.insert(C.list, c)
-        A.testHound = c
-    end)
-    S(6.0, function() end)
-    S(0.1, function() log("hound vs tank: state", A.testHound.state, "tank damage taken", A.hullBefore - (T.comp.trackL + T.comp.trackR + T.comp.hull)) A.testHound.remove = true end)
-    -- enemy tank engages the player's tank
-    S(0.2, function()
-        local e = G.enemies.tanks[1]
-        e.x, e.z = T.x + 120, T.z
-        e.y = W.height(e.x, e.z)
-        e.state = "patrol"
-        A.compBefore = T.comp.hull
-        G.weapons.debug = true
-        log("enemy placed 120m away", "tank at", T.x, T.y, T.z, "enemy y", e.y)
-    end)
-    S(25, function() end)
-    S(0.1, function()
-        local e = G.enemies.tanks[1]
-        log("enemy state", e.state, "want", e.dbgWant, "diff", e.dbgDiff, "pitch", e.gunPitch, "aimT", e.aimT, "reload", e.reload, "player tank hull", T.comp.hull, "before", A.compBefore)
-        G.weapons.debug = false
-        G.enemies.hit(e, 200, e.x, e.y + 1, e.z, 1, 0, "AP")
-        log("enemy alive after hit", e.alive)
-    end)
-    S(2.0, function() end)
-    -- repair
-    S(0.2, function()
+        Game.state = "play"
         T.comp.trackR = 20
         G.inventory.player:add("repair_kit", 1)
         local x, y, z = T.frame:toWorld(0, 0, 3.4)
@@ -278,24 +281,7 @@ function A.start(game)
     S(0.4, function() log("repair prompt:", I.currentText) I.press() press("e") end)
     S(4.0, function() end)
     S(0.1, function() press() log("trackR after repair", T.comp.trackR) end)
-    -- refuel
-    S(0.2, function()
-        G.inventory.player:add("fuel", 1)
-        T.fuel = 30
-        local x, y, z = T.frame:toWorld(-3.0, 2.4, 0)
-        Pl.placeWalking("world", x, y + 0.1, z, T.yaw)
-        local fx, fy, fz = T.frame:toWorld(-3.0, 2.45, 0)
-    end)
-    S(0.5, function()
-        local x, y, z = T.frame:toWorld(-2.6, 2.4, 0.0)
-        Pl.placeWalking("world", x, y + 0.05, z, T.yaw + math.pi)
-        local fx, fy, fz = T.frame:toWorld(-3.0, 2.45, 0)
-        lookAt(fx, fy, fz)
-    end)
-    S(0.4, function() log("refuel prompt:", I.currentText) I.press() press("e") end)
-    S(3.0, function() end)
-    S(0.1, function() press() log("fuel after refuel", T.fuel) end)
-    -- doors, bunker transition, keycard, control room, ending
+    -- 16: bunker transition, keycard, control room, ending
     S(0.2, function()
         for _, d in ipairs(W.doors) do
             if not d.transition and not d.locked then
@@ -319,237 +305,27 @@ function A.start(game)
         local cr = W.controlRoom
         Pl.placeWalking("world", cr.x0 + 6, cr.y + 0.05, cr.z0 + 4, 0)
     end)
-    S(0.5, function() end, "39_control_room")
+    S(0.5, function() end, "40_control_room")
     S(0.1, function()
-        log("control entered stage", G.missions.stage, G.missions.current() and G.missions.current().id)
+        log("control entered stage", G.missions.stage)
         local c = W.signalConsole
+        Pl.placeWalking("world", c.x, W.controlRoom.y + 0.05, c.z + 1.4, -math.pi / 2)
         lookAt(c.x, c.y, c.z)
     end)
     S(0.5, function() end)
-    S(0.2, function()
-        local c = W.signalConsole
-        Pl.placeWalking("world", c.x, W.controlRoom.y + 0.05, c.z + 1.6, -math.pi / 2)
-        lookAt(c.x, c.y, c.z)
-    end)
-    S(0.4, function() log("console prompt:", I.currentText) I.press() end)
-    S(3.0, function() log("game state", Game.state, "finished", G.missions.finished) end, "40_ending")
+    S(0.2, function() log("console prompt:", I.currentText) I.press() end)
+    S(3.0, function() log("game state", Game.state, "finished", G.missions.finished) end, "41_ending")
     S(0.2, function() Game.state = "play" end)
-    -- cold exposure
-    S(0.2, function() teleport(0, 200, 0, 0) G.weather.intensity = 1 G.environment.time = 2 Pl.warmth = 100 A.w0 = Pl.warmth end)
-    S(10, function() end)
-    S(0.1, function() log("warmth after 10s in a night blizzard", Pl.warmth, "from", A.w0) G.weather.intensity = 0.3 G.environment.time = 15 end)
-    -- real input handlers
-    S(0.2, function()
-        Pl.placeWalking("tank", -1.0, 0.62, 0, math.pi)
-        Pl.pitch = -0.25
-        G.game.state = "play"
-    end)
-    S(0.3, function() log("aim at:", I.currentText) love.keypressed("e") log("after E state", Game.state) end)
-    S(0.2, function() love.keypressed("escape") log("after ESC state", Game.state) end)
-    S(0.2, function() love.keypressed("tab") log("after TAB state", Game.state) end)
-    S(0.2, function() love.keypressed("tab") love.keypressed("m") log("after M state", Game.state) end)
-    S(0.2, function() love.keypressed("m") love.keypressed("escape") log("after ESC state", Game.state) end)
-    S(0.2, function() love.keypressed("escape") log("resumed", Game.state) end)
-    S(0.2, function()
-        Pl.placeWalking("tank", 1.6, 0.62, -0.75, 0)
-    end)
-    S(0.3, function()
-        local x, y, z = T.frame:toWorld(2.25, 1.2, -0.75)
-        lookAt(x, y, z)
-    end)
-    S(0.3, function() log("aim at:", I.currentText) love.keypressed("e") log("mode", Pl.mode, Pl.station and Pl.station.name) end)
-    S(0.2, function() log("engine before F:", T.engineOn) love.keypressed("f") end)
-    S(2.0, function() end)
-    S(0.1, function() log("engine via F:", T.engineOn, "state", Game.state, "starting", T.engineStarting, "engine comp", T.comp.engine, "fuel", T.fuel, "destroyed", T.destroyed, "note", G.ui.notes[#G.ui.notes] and G.ui.notes[#G.ui.notes].text) love.keypressed("e") log("left seat, mode", Pl.mode) end)
-    -- visual review: creature lineup, enemy close-up, track marks
-    S(0.2, function()
-        G.environment.time = 12.5
-        G.weather.intensity = 0.2 G.weather.target = 0.2
-        teleport(-20, 300, 0, -0.05)
-        local C = G.creatures
-        for i, k in ipairs({ "hound", "crawler", "burrower", "mutant" }) do
-            local c = { kind = k, def = C.KINDS[k], x = -20 + 9 + (k == "mutant" and 3 or 0), y = 0, z = 300 - 6 + (i - 1) * 4, yaw = math.pi * 0.6,
-                        hp = 999, state = "idle", timer = 99, homeX = 0, homeZ = 300, homeR = 1, group = C.groups[1], phase = i, speed = 0,
-                        attackT = 0, jaw = 0.5, hurtT = 0, alertT = 0, deathT = 0, lastSeenT = 99, pain = 0, emerge = 1, frozen = true }
-            c.y = W.height(c.x, c.z)
-            table.insert(C.list, c)
-        end
-        lookAt(-11, W.height(-11, 300) + 0.8, 300)
-    end)
-    S(0.6, function() for _, c in ipairs(G.creatures.list) do if c.frozen then c.state = "idle" c.timer = 99 c.speed = 0 end end end, "44_creature_lineup")
-    S(0.1, function() for _, c in ipairs(G.creatures.list) do if c.frozen then c.remove = true end end end)
-    S(0.2, function()
-        local e = G.enemies.tanks[2]
-        teleport(e.x + 9, e.z + 7, 0, 0)
-        lookAt(e.x, e.y + 1.3, e.z)
-        G.game.godMode = true
-    end)
-    S(0.6, nil, "45_enemy_closeup")
-    S(0.2, function()
-        G.game.godMode = false
-        local x, y, z = T.frame:toWorld(-14, 0, 2)
-        teleport(x, z, 0, -0.35)
-        lookAt(T.x, T.y, T.z)
-    end)
-    S(0.6, nil, "46_track_marks")
-    -- destruction
-    local function nearestD(x, z, pred)
-        local best, bd
-        for _, o in ipairs(W.dobjs) do
-            if o.alive and o.cx and pred(o) then
-                local d = U.dist2 and U.dist2(o.cx, o.cz, x, z) or math.sqrt((o.cx - x) ^ 2 + (o.cz - z) ^ 2)
-                if not bd or d < bd then best, bd = o, d end
-            end
-        end
-        return best, bd
-    end
-    S(0.2, function()
-        G.game.godMode = true
-        G.environment.time = 13 G.weather.intensity = 0.2 G.weather.target = 0.2
-        log("destructible objects", #W.dobjs)
-        local o, d = nearestD(20, 130, function(o) return o.kind == "wood" and o.crush end)
-        A.dWood = o
-        log("nearest wood crushable", o and o.kind, d)
-        if o then
-            teleport(o.cx + 5, o.cz + 1.5, 0, 0)
-            lookAt(o.cx, o.cy, o.cz)
-            G.weapons.current = "smg" G.weapons.mag.smg = 71
-        end
-    end)
-    S(0.8, nil, "60_checkpoint_before")
-    S(0.1, function() if A.dWood then lookAt(A.dWood.cx, A.dWood.cy, A.dWood.cz) end A.mouse[1] = true end)
-    S(1.6, function() end)
-    S(0.1, function() A.mouse[1] = false log("wood after smg burst: alive", A.dWood and A.dWood.alive, "hp", A.dWood and A.dWood.hp) end, "61_checkpoint_shot")
-    S(1.0, nil, "62_checkpoint_debris")
-    S(0.2, function()
-        local o = nearestD(20, 130, function(o) return o.kind == "metal" end)
-        A.dMetal = o
-        if o then
-            local before = o.hp
-            for i = 1, 30 do
-                local ox, oy, oz = o.cx + 12, o.cy + 0.5, o.cz
-                local dx, dy, dz = U.norm3(o.cx - ox, o.cy - oy, o.cz - oz)
-                G.weapons.hitscan(ox, oy, oz, dx, dy, dz, 600, 22, "mg", false)
-            end
-            log("metal", o.kind, "hp", before, "->", o.hp, "alive", o.alive)
-        end
-    end)
-    S(0.2, function()
-        local o, d = nearestD(-150, 300, function(o) return o.kind == "building" end)
-        A.dHouse = o
-        log("nearest house", d)
-        if o then
-            teleport(o.cx + 22, o.cz + 8, 0, 0)
-            lookAt(o.cx, o.cy, o.cz)
-        end
-    end)
-    S(1.0, nil, "63_house_before")
-    S(0.1, function()
-        local o = A.dHouse
-        if o then
-            local ox, oy, oz = o.cx + 18, o.cy + 1, o.cz + 6
-            local dx, dy, dz = U.norm3(o.cx - ox, o.cy - oy, o.cz - oz)
-            G.weapons.fireShell("HE", ox, oy, oz, dx, dy, dz, "player")
-        end
-    end)
-    S(0.25, nil, "64_house_impact")
-    S(0.1, function() log("house after HE: alive", A.dHouse and A.dHouse.alive, "hp", A.dHouse and A.dHouse.hp) end)
-    S(1.2, nil, "65_house_dust")
-    S(0.1, function()
-        local o = A.dHouse
-        if o and o.alive then G.destruction.damage(o, 5000, "he", o.cx, o.cy, o.cz) end
-        log("house destroyed", o and not o.alive)
-    end)
-    S(2.5, nil, "66_house_ruin")
-    S(0.2, function()
-        local o = nearestD(-100, 200, function(o) return o.kind == "vehicle" end)
-        A.dCar = o
-        if o then teleport(o.cx + 10, o.cz + 6, 0, 0) lookAt(o.cx, o.cy, o.cz) end
-    end)
-    S(0.8, nil, "67_vehicle_before")
-    S(0.1, function() local o = A.dCar if o then G.destruction.damage(o, 5000, "he", o.cx, o.cy, o.cz) end end)
-    S(2.0, nil, "68_vehicle_burning")
-    S(0.1, function() G.game.godMode = false end)
-    -- v2 features
-    S(0.2, function()
-        G.game.godMode = true
-        G.environment.time = 16.5 G.weather.intensity = 0.25 G.weather.target = 0.25
-        local c = W.camp
-        teleport(c.x + 10, c.z + 8, 0, -0.05)
-        lookAt(c.x, W.height(c.x, c.z) + 0.8, c.z)
-    end)
-    S(2.0, nil, "50_loner_camp")
-    S(0.2, function()
-        local c = W.camp
-        teleport(c.x + 9.2, c.z - 3.5, 0, 0)
-        lookAt(c.x + 7.2, W.height(c.x, c.z) + 1.5, c.z - 3.0)
-    end)
-    S(0.4, function() log("trader prompt:", I.currentText) I.press() log("state", Game.state) end, "51_trade")
-    S(0.2, function() Game.state = "play" end)
-    S(0.2, function() G.weapons.switch("rifle") teleport(10, 140, -math.pi / 2, 0.02) A.mouse[2] = true end)
-    S(1.5, nil, "52_rifle_ads")
-    S(0.2, function() A.mouse[2] = false G.weapons.switch("smg") end)
-    S(0.8, nil, "53_smg_hip")
-    S(0.2, function() A.mouse[2] = true end)
-    S(0.8, nil, "54_smg_ads")
-    S(0.2, function() A.mouse[2] = false G.weapons.switch("pistol") end)
-    S(0.8, nil, "55_pistol")
-    S(0.1, function() G.weapons.switch("rifle") end)
-    S(0.2, function()
-        local b
-        for _, h in ipairs(G.humans.list) do if h.faction == "bandit" then b = h break end end
-        teleport(b.x + 25, b.z + 12, 0, 0)
-        lookAt(b.x, b.y + 1.2, b.z)
-    end)
-    S(2.5, function() end, "56_bandits")
-    S(0.1, function()
-        local n = 0
-        for _, h in ipairs(G.humans.list) do if h.state == "combat" then n = n + 1 end end
-        log("bandits in combat:", n, "player hp", Pl.health)
-    end)
-    S(0.2, function()
-        G.game.godMode = false
-        Pl.health = 100
-        local b
-        for _, h in ipairs(G.humans.list) do if h.faction == "bandit" and h.state ~= "dead" then b = h break end end
-        teleport(b.x + 30, b.z + 10, 0, 0)
-        lookAt(b.x, b.y + 1.2, b.z)
-        A.hpBefore = Pl.health
-    end)
-    S(6.0, function() end)
-    S(0.1, function()
-        local st = {}
-        for _, h in ipairs(G.humans.list) do
-            if h.faction == "bandit" and U.dist2(h.x, h.z, Pl.x, Pl.z) < 80 then st[#st + 1] = h.state .. (h.sees and "+" or "-") .. math.floor(U.dist2(h.x, h.z, Pl.x, Pl.z)) end
-        end
-        log("bandit states", table.concat(st, " "), "shots", G.humans.shots)
-        log("6s under bandit fire on foot: hp", Pl.health, "mode", Pl.mode) Pl.health = 100 G.game.godMode = true end)
-    S(0.2, function()
-        local an = W.anomalies[1]
-        teleport(an.x + 9, an.z + 2, 0, -0.1)
-        lookAt(an.x, an.y + 0.8, an.z)
-    end)
-    S(2.0, nil, "57_anomaly")
-    S(0.2, function()
-        Pl.placeWalking("tank", 0.9, 0.62, -0.6, -2.4)
-        Pl.pitch = -0.05
-        local C = G.creatures
-        local c = { kind = "hound", def = C.KINDS.hound, x = T.x + 60, y = T.y, z = T.z - 40, yaw = 0, hp = 90, state = "idle", timer = 99,
-                    homeX = T.x + 60, homeZ = T.z - 40, homeR = 3, group = C.groups[1], phase = 0, speed = 0, attackT = 0, jaw = 0,
-                    hurtT = 0, alertT = 0, deathT = 0, lastSeenT = 99, pain = 0 }
-        table.insert(C.list, c)
-    end)
-    S(3.5, nil, "58_radar_inside")
     S(0.2, function() G.game.godMode = false end)
-    S(0.2, function() Game.state = "pause" end, "41_pause")
-    S(0.2, function() Game.state = "settings" end, "42_settings")
+    S(0.2, function() Game.state = "pause" end, "42_pause")
+    S(0.2, function() Game.state = "settings" end, "43_settings")
     S(0.2, function() Game.state = "message" Game.message = { title = "TEST", body = "Body text" } end)
-    S(0.2, function() Game.state = "dead" Game.deathCause = "cold" end, "43_dead")
+    S(0.2, function() Game.state = "dead" Game.deathCause = "cold" end, "44_dead")
     S(0.2, function() Game.state = "play" end)
     S(0.5, function() G.menu.open() G.menu.sub = "settings" end)
     S(0.3, function() G.menu.sub = "main" end)
     S(0.5, function() G.menu.open() end)
-    S(2.5, nil, "38_main_menu")
+    S(2.5, nil, "45_main_menu")
     S(0.5, function() log("DONE", "frames", A.frames) love.event.quit() end)
     idx, stepT = 1, 0
     A.frames = 0

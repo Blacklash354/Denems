@@ -6,7 +6,7 @@ local FILE = "save.json"
 
 function S.init(game) G = game end
 
-function S.exists() return love.filesystem.getInfo(FILE) ~= nil end
+function S.exists() return S.read() ~= nil end
 
 function S.save()
     local W = G.world
@@ -15,16 +15,16 @@ function S.save()
     for _, p in ipairs(W.pickups) do if p.taken then taken[#taken + 1] = p.id end end
     for _, d in ipairs(W.doors) do if d.open or d.unlocked then doors[d.id] = { open = d.open, unlocked = d.unlocked } end end
     local data = {
-        version = 1,
+        version = 2,
         player = G.player.serialize(),
         tank = G.tank.serialize(),
         invPlayer = G.inventory.player:serialize(),
         invTank = G.inventory.tank:serialize(),
+        worn = G.inventory.serializeWorn(),
         weapons = G.weapons.serialize(),
         missions = G.missions.serialize(),
         environment = G.environment.serialize(),
         weather = G.weather.serialize(),
-        creatures = G.creatures.serialize(),
         enemies = G.enemies.serialize(),
         humans = G.humans.serialize(),
         containers = searched,
@@ -39,7 +39,10 @@ end
 function S.read()
     local s = love.filesystem.read(FILE)
     if not s then return nil end
-    return json.decode(s)
+    local data = json.decode(s)
+    -- saves from the small pre-open-world map do not fit this world
+    if type(data) ~= "table" or (data.version or 1) < 2 then return nil end
+    return data
 end
 
 function S.apply(data)
@@ -48,12 +51,12 @@ function S.apply(data)
     G.player.load(data.player)
     G.inventory.player:load(data.invPlayer)
     G.inventory.tank:load(data.invTank)
+    G.inventory.loadWorn(data.worn)
     G.weapons.reset()
     G.weapons.load(data.weapons)
     G.missions.load(data.missions)
     G.environment.load(data.environment)
     G.weather.load(data.weather)
-    G.creatures.load(data.creatures)
     G.enemies.reset(data.enemies)
     G.humans.reset(data.humans)
     local taken = {}

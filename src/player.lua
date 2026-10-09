@@ -244,8 +244,8 @@ local function footstep()
         local fx, fz = math.cos(Pl.yaw), math.sin(Pl.yaw)
         G.effects.footprint(Pl.x - fz * side, Pl.z + fx * side, Pl.yaw)
     end
-    if G.creatures and Pl.frameName == "world" then
-        G.creatures.noise(Pl.x, Pl.y, Pl.z, Pl.crouch and 3 or (sprint and 16 or 8), "steps")
+    if G.humans and Pl.frameName == "world" then
+        G.humans.noise(Pl.x, Pl.y, Pl.z, Pl.crouch and 3 or (sprint and 14 or 7))
     end
 end
 
@@ -299,14 +299,15 @@ function Pl.updateWalk(dt)
     local crouchKey = love.keyboard.isDown("c") or love.keyboard.isDown("lctrl")
     Pl.crouch = crouchKey
     local wantSprint = love.keyboard.isDown("lshift") and f > 0 and not Pl.crouch and not inTank and Pl.stamina > 5
-    local speed = inTank and 1.9 or (Pl.crouch and 1.6 or 3.1)
+    local speed = inTank and 1.9 or (Pl.crouch and 1.4 or 2.7)
     Pl.sprinting = false
     if wantSprint and (f ~= 0 or r ~= 0) then
-        speed = 5.4
+        speed = 4.7
         Pl.sprinting = true
-        Pl.stamina = math.max(0, Pl.stamina - dt * 14)
+        Pl.stamina = math.max(0, Pl.stamina - dt * 12)
     end
-    if Pl.frameName == "world" and not Pl.groundBox and W.roadDistance(Pl.x, Pl.z) > 6 then speed = speed * 0.9 end
+    -- deep snow off the roads is slow going
+    if Pl.frameName == "world" and not Pl.groundBox and W.roadDistance(Pl.x, Pl.z) > 6 then speed = speed * 0.86 end
     if Pl.warmth < 25 then speed = speed * 0.85 end
     if G.weapons and G.weapons.aiming then speed = speed * 0.6 end
     local l = math.sqrt(f * f + r * r)

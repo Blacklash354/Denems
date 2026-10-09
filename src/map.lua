@@ -20,7 +20,6 @@ function Map.init(game)
         local v = 0.16 + shade * 0.18 + U.clamp(h / 120, 0, 0.12)
         local r, g, b = v * 0.9, v * 0.93, v
         if W.isRiver(x, z) then r, g, b = 0.25, 0.3, 0.38 end
-        if W.roadDistance(x, z) < 3.5 then r, g, b = 0.55, 0.53, 0.5 end
         if U.hash2(px, py, 3) > 0.985 then r, g, b = r + 0.05, g + 0.05, b + 0.05 end
         return r, g, b, 1
     end)
@@ -63,6 +62,17 @@ local function icon(kind, x, y, s, a)
         lg.rectangle("fill", x - 1, y, 2, 5)
     elseif kind == "checkpoint" then
         lg.line(x - 6, y + 3, x + 6, y - 2) lg.rectangle("line", x - 7, y + 3, 3, 3)
+    elseif kind == "city" then
+        lg.rectangle("line", x - 7, y - 6, 4, 11) lg.rectangle("line", x - 2, y - 9, 4, 14) lg.rectangle("line", x + 3, y - 4, 4, 9)
+    elseif kind == "farm" then
+        lg.polygon("line", x - 6, y + 4, x - 6, y - 1, x - 2, y - 5, x + 2, y - 1, x + 2, y + 4)
+        lg.rectangle("line", x + 3, y - 6, 3, 10)
+    elseif kind == "garage" then
+        for i = -1, 1 do lg.rectangle("line", x + i * 5 - 2, y - 2, 4, 5) end
+        lg.line(x - 8, y - 3, x + 8, y - 3)
+    elseif kind == "airfield" then
+        lg.line(x - 7, y, x + 7, y) lg.line(x, y - 3, x, y + 5) lg.line(x - 3, y + 4, x + 3, y + 4)
+        lg.line(x - 2, y - 3, x + 2, y - 3)
     end
 end
 
@@ -79,6 +89,19 @@ function Map.draw(UI)
     lg.setColor(1, 1, 1, 1)
     lg.draw(Map.image, x0, y0, 0, size / Map.image:getWidth(), size / Map.image:getHeight())
     local function toMap(x, z) return x0 + (x / Map.span + 0.5) * size, y0 + (z / Map.span + 0.5) * size end
+    -- roads
+    lg.setLineWidth(1)
+    for _, path in ipairs(W.roadPaths) do
+        local pts = {}
+        for i = 1, #path, 4 do
+            local mx, my = toMap(path[i].x, path[i].z)
+            pts[#pts + 1], pts[#pts + 2] = mx, my
+        end
+        local mx, my = toMap(path[#path].x, path[#path].z)
+        pts[#pts + 1], pts[#pts + 2] = mx, my
+        if path.road.mat == "track" then lg.setColor(0.62, 0.58, 0.52, 0.6) else lg.setColor(0.72, 0.7, 0.66, 0.85) end
+        if #pts >= 4 then lg.line(pts) end
+    end
     -- grid
     lg.setColor(1, 1, 1, 0.06)
     for i = 1, 7 do
@@ -121,7 +144,6 @@ function Map.draw(UI)
         mx + math.cos(a - 2.5) * 4, my + math.sin(a - 2.5) * 4)
     UI.text("TANK", x0 + size + 14, y0 + 10, { 0.6, 0.8, 0.55 }, UI.fontS)
     UI.text("YOU", x0 + size + 14, y0 + 20, { 0.95, 0.3, 0.2 }, UI.fontS)
-    UI.text("OBJECTIVE", x0 + size + 14, y0 + 30, UI.COL.amber, UI.fontS)
     UI.text(G.environment.clockString(), x0 + size + 14, y0 + 46, UI.COL.dim, UI.fontS)
     UI.text("[M] CLOSE", x0 + size + 14, y0 + size - 8, UI.COL.dim, UI.fontS)
 end

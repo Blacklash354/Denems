@@ -6,10 +6,10 @@ local R = {}
 local lg = love.graphics
 
 R.qualities = {
-    { name = "LOW", w = 480, h = 270, drawDist = 170 },
-    { name = "MEDIUM", w = 640, h = 360, drawDist = 220 },
-    { name = "HIGH", w = 960, h = 540, drawDist = 270 },
-    { name = "PSX 240P", w = 426, h = 240, drawDist = 200 },
+    { name = "LOW", w = 480, h = 270, drawDist = 200 },
+    { name = "MEDIUM", w = 640, h = 360, drawDist = 280 },
+    { name = "HIGH", w = 960, h = 540, drawDist = 360 },
+    { name = "PSX 240P", w = 426, h = 240, drawDist = 240 },
 }
 
 -- full-screen display filters applied in the post pass
@@ -52,6 +52,8 @@ function R.init(quality)
     R.spotDir = { 0, 0, 1, 0.9 }
     R.buildSky()
     R.setQuality(quality or 2)
+    local sup = lg.getSupported()
+    R.instancing = sup and sup.instancing and not os.getenv("STEEL_NO_INSTANCING")
 end
 
 function R.setQuality(q)
@@ -191,6 +193,7 @@ function R.defaults()
     local e = R.env
     sendCached(sh, "uInterior", 0)
     sendCached(sh, "uEmissive", 0)
+    sendCached(sh, "uInstanced", 0)
     send(sh, "uTint", { 1, 1, 1, 1 })
     send(sh, "uvOffset", { 0, 0 })
     send(sh, "fogRange", { e.fogStart, e.fogEnd })
@@ -242,6 +245,32 @@ function R.drawModel(model, matrix, params)
     end
     R.stats.draws = R.stats.draws + #parts
     R.stats.tris = R.stats.tris + model.tris
+end
+
+-- many copies of a small model (trees, rocks): per-instance position/yaw/scale from instMesh
+function R.drawInstanced(model, instMesh, count)
+    local sh = R.world
+    sendCached(sh, "uInstanced", 1)
+    sendCached(sh, "uInterior", 0)
+    sendCached(sh, "uEmissive", 0)
+    sendCached(sh, "alphaCut", 0.5)
+    if cur.tint then send(sh, "uTint", { 1, 1, 1, 1 }) cur.tint = false end
+    if cur.uv then send(sh, "uvOffset", { 0, 0 }) cur.uv = false end
+    if cur.fog then
+        send(sh, "fogRange", { R.env.fogStart, R.env.fogEnd })
+        sendCached(sh, "fogMax", 1)
+        cur.fog = false
+    end
+    local parts = model.parts
+    for i = 1, #parts do
+        local m = parts[i].mesh
+        m:attachAttribute("InstXf", instMesh, "perinstance")
+        m:attachAttribute("InstSc", instMesh, "perinstance")
+        lg.drawInstanced(m, count)
+    end
+    sendCached(sh, "uInstanced", 0)
+    R.stats.draws = R.stats.draws + #parts
+    R.stats.tris = R.stats.tris + model.tris * count
 end
 
 -- visibility test of a world-space sphere against the camera (distance + rough frustum)

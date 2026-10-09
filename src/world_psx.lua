@@ -1,6 +1,6 @@
 -- World content built from the imported PSX model packs: the abandoned fuel station,
--- roadside wrecks, forest clutter and the lairs of the walkers and giant spiders.
--- Runs as the last world-gen step so existing object and spawn ids stay stable.
+-- roadside wrecks, forest clutter and the hand-made Soviet blocks, metro car and helicopter
+-- that fill the city of Zarechny.
 local W = require("src.world")
 local Props = require("src.props")
 local PA = require("src.psx_assets")
@@ -19,7 +19,7 @@ end
 
 -- a wrecked car/pickup as a destructible vehicle (burns out when shot up)
 local function wreck(Gen, name, x, z, rot)
-    local c = W.dctx(x, z, rot, "vehicle", 380, {})
+    local c = W.dctx(x, z, rot, "vehicle", 260, {})
     PA.put(c, "vehicles", name, 0, 0, 0, 0, 1, COLD)
     local x0, y0, z0, x1, y1, z1 = PA.bounds("vehicles", name)
     c:collider(x0 + 0.1, 0, z0 + 0.05, x1 - 0.1, y1 - 0.25, z1 - 0.05)
@@ -148,11 +148,10 @@ local function buildStation(Gen, rng)
     wreck(Gen, "pickup_red", L.x + 6.5, L.z - 7.5, 0.35)
     Gen.container(W.ctx(L.x + 6.5, L.z - 7.5, 0.35), -1.6, 0.9, 0, "wreck", "PICKUP BED")
 
-    -- the walkers shamble around the pumps
-    Gen.spawn(L.x - 2, L.z + 2, "zombie", 4, "station", { radius = 16 })
+    Gen.take(L.x - 3, L.z, 18, 11)
 end
 
--- logs, stumps and boulders from the forest pack; dead trunks around the spider nest
+-- logs, stumps and boulders from the forest pack scattered through the woods
 local function buildClutter(Gen, rng)
     local F = W.forest
     local function scatter(name, cx, cz, radius, count, sMin, sMax, collide)
@@ -161,40 +160,34 @@ local function buildClutter(Gen, rng)
             local r = math.sqrt(rng:next()) * radius
             local x, z = cx + math.cos(a) * r, cz + math.sin(a) * r
             local hits = W.colliders:query(x - 2, z - 2, x + 2, z + 2, {})
-            if W.roadDistance(x, z) > 9 and math.abs(x - W.riverX(z)) > 16 and #hits == 0 then
+            if W.roadDistance(x, z) > 9 and math.abs(x - W.riverX(z)) > 18 and #hits == 0 and Gen.free(x, z, 2, 2, 3) then
                 local s = rng:range(sMin, sMax)
                 local c = W.ctx(x, z, rng:range(0, 2 * pi))
                 PA.put(c, "forest", name, 0, -0.04, 0, 0, s, COLD)
                 local x0, y0, z0, x1, y1, z1 = PA.bounds("forest", name, s)
                 if collide then c:collider(x0 * 0.8, 0, z0 * 0.8, x1 * 0.8, y1 * 0.85, z1 * 0.8) end
-                if name ~= "tree_dead" then snowCap(c, x0 * 0.55, z0 * 0.55, x1 * 0.55, z1 * 0.55, y1 * 0.9, 0.05) end
+                snowCap(c, x0 * 0.55, z0 * 0.55, x1 * 0.55, z1 * 0.55, y1 * 0.9, 0.05)
             end
         end
     end
-    scatter("log", F.x, F.z, 110, 26, 0.9, 1.3, true)
-    scatter("stump", F.x, F.z, 110, 30, 0.8, 1.4, true)
-    scatter("boulder", F.x, F.z, 120, 22, 1.0, 2.4, true)
-    scatter("log", -80, 420, 110, 10, 0.9, 1.2, true)
-    scatter("stump", -420, 200, 130, 14, 0.8, 1.3, true)
-    scatter("boulder", 0, 0, 560, 60, 1.0, 2.6, true)
-    -- spider nest: a ring of dead trunks deep in the forest
-    local nx, nz = F.x + 62, F.z - 58
-    for i = 1, 9 do
-        local a = i / 9 * 2 * pi + rng:range(-0.2, 0.2)
-        local r = rng:range(7, 13)
-        local c = W.ctx(nx + math.cos(a) * r, nz + math.sin(a) * r, rng:range(0, 6.28))
-        PA.put(c, "forest", "tree_dead", 0, -0.05, 0, 0, rng:range(1.0, 1.5), { 0.7, 0.72, 0.8 })
-        c:collider(-0.22, 0, -0.22, 0.22, 4, 0.22, { tree = true })
+    scatter("log", F.x, F.z, 240, 60, 0.9, 1.3, true)
+    scatter("stump", F.x, F.z, 240, 50, 0.8, 1.4, true)
+    scatter("boulder", F.x, F.z, 240, 40, 1.0, 2.4, true)
+    scatter("log", -900, 1500, 240, 25, 0.9, 1.2, true)
+    scatter("log", -1300, -300, 280, 25, 0.9, 1.2, true)
+    scatter("boulder", 0, 0, 1800, 160, 1.0, 2.8, true)
+    -- roadside wrecks along the highway
+    local path = W.roadPaths[1]
+    local names = { "sedan_blue", "sedan_rusted", "pickup_red" }
+    for i = 30, #path, 70 do
+        local p = path[i]
+        if rng:next() < 0.6 then
+            local side = rng:next() < 0.5 and -1 or 1
+            local off = path.road.half + 5
+            local x, z = p.x - p.tz * off * side, p.z + p.tx * off * side
+            if Gen.free(x, z, 3, 3, 1.5) then wreck(Gen, names[rng:int(1, 3)], x, z, math.atan2(p.tz, p.tx) + rng:range(-0.25, 0.25)) end
+        end
     end
-    Gen.spawn(nx, nz, "spider", 3, "forest", { radius = 12 })
-    Gen.spawn(-330, -70, "spider", 2, "industrial", { radius = 14 })
-    Gen.spawn(-215, 250, "zombie", 3, "village", { radius = 18 })
-
-    -- roadside wrecks
-    wreck(Gen, "sedan_blue", 36, 168, 1.35)
-    wreck(Gen, "sedan_rusted", -96, 323, 0.2)
-    wreck(Gen, "pickup_red", 101, -332, -1.1)
-    wreck(Gen, "sedan_rusted", -161, -128, 2.2)
 end
 
 -- a model from one of the user's .glb files, centred on its footprint and standing on the ground.
@@ -219,69 +212,81 @@ local function placeGlb(file, node, x, z, rot, scale, opts)
     return c, hx, hz, h
 end
 
--- the dead microdistrict west of the village: panel blocks around a yard, a stranded metro car,
--- a helicopter that never took off again
-local function buildDistrict(Gen, rng)
-    local L = W.district
+-- Zarechny: the hand-made blocks fill the spots the generator left free, a stranded metro car
+-- sits by the square and a helicopter that never took off again rusts in a yard
+local function buildCity(Gen, rng)
+    local L = W.city
     local has = function(f) return love.filesystem.getInfo("assets/" .. f) ~= nil end
     local PANELKA, KHRUSH, TOWER = "lowpoly_panelka_psx.glb", "soviet_khrushchyovka_-_ps1_style.glb", "psx_russian_soviet_housing_3d_model.glb"
     local BLOCKS, HELI, METRO = "russian_residential_blocks_spalny_rayon_psx.glb", "ps1low_poly_kamov_ka29_helix_helicopter.glb",
                                 "low_poly_psx_style_soviet_subway_-_metro_props.glb"
     local wall = { 0.8, 0.82, 0.88 }
-    if has(PANELKA) then
-        placeGlb(PANELKA, nil, L.x - 6, L.z - 38, 0, 1, { collide = 0.97, tint = wall })
-        placeGlb(PANELKA, nil, L.x + 4, L.z + 40, math.pi, 1, { collide = 0.97, tint = wall })
-    end
-    if has(KHRUSH) then
-        placeGlb(KHRUSH, nil, L.x - 40, L.z + 2, 0, 1, { collide = 0.96, tint = wall })
-        placeGlb(KHRUSH, nil, L.x + 38, L.z - 4, math.pi, 1, { collide = 0.96, tint = wall })
-    end
-    if has(TOWER) then
-        placeGlb(TOWER, nil, L.x - 38, L.z + 44, 0.2, 1, { collide = 1, tint = wall })
-        placeGlb(TOWER, nil, L.x + 40, L.z - 44, -0.3, 1, { collide = 1, tint = wall })
+    -- footprint half extents in the model's own frame (x, z) and the file
+    local kinds = {}
+    if has(PANELKA) then kinds[#kinds + 1] = { PANELKA, 6, 14 } end
+    if has(KHRUSH) then kinds[#kinds + 1] = { KHRUSH, 19, 6 } end
+    if has(TOWER) then kinds[#kinds + 1] = { TOWER, 4.5, 9.5 } end
+    for _, spot in ipairs(Gen.cityGlbSpots or {}) do
+        if #kinds > 0 then
+            local k = kinds[rng:int(1, #kinds)]
+            local rot = Gen.faceRoad(spot[1], spot[2])
+            local hx, hz = k[2], k[3]
+            if math.abs(math.sin(rot)) > 0.5 then hx, hz = hz, hx end
+            if Gen.free(spot[1], spot[2], hx + 1, hz + 1, 4) then
+                Gen.take(spot[1], spot[2], hx + 1, hz + 1)
+                placeGlb(k[1], nil, spot[1], spot[2], rot, 1, { collide = 0.97, tint = wall })
+            end
+        end
     end
     if has(BLOCKS) then
-        -- a row of big slabs on the skyline behind the district, visible from far away
-        placeGlb(BLOCKS, nil, L.x - 96, L.z + 6, 0, 4.5, { landmark = true, collide = 0.95, y = W.height(L.x - 96, L.z + 6) - 3, tint = { 0.7, 0.72, 0.8 } })
+        -- rows of big slabs on the skyline around the city, visible from far away
+        for _, p in ipairs({ { -360, -120, 0 }, { 300, 230, pi / 2 }, { -300, 300, 0 } }) do
+            local x, z = L.x + p[1], L.z + p[2]
+            if Gen.free(x, z, 42, 42, 4) then
+                Gen.take(x, z, 42, 42)
+                placeGlb(BLOCKS, nil, x, z, p[3], 4.5, { landmark = true, collide = 0.95, y = W.height(x, z) - 3, tint = { 0.7, 0.72, 0.8 } })
+            end
+        end
     end
     if has(HELI) then
-        local c, hx, hz, h = placeGlb(HELI, nil, L.x + 6, L.z + 4, 0.7, 2, { collide = 0.55, tint = { 0.9, 0.9, 0.95 } })
-        Gen.container(c, 0, 1.2, hz * 0.3, "military", "HELICOPTER CARGO")
+        local x, z = L.x + 60, L.z + 60
+        if Gen.free(x, z, 8, 8, 3) then
+            Gen.take(x, z, 8, 8)
+            local c, hx, hz, h = placeGlb(HELI, nil, x, z, 0.7, 2, { collide = 0.55, tint = { 0.9, 0.9, 0.95 } })
+            Gen.container(c, 0, 1.2, hz * 0.3, "military", "HELICOPTER CARGO")
+        end
+        local A = W.airfield
+        local c2 = placeGlb(HELI, nil, A.x - 20, A.z - 45, 1.4, 2.2, { collide = 0.55, tint = { 0.85, 0.9, 0.85 } })
+        Gen.container(c2, 0, 1.2, 0, "armory", "HELICOPTER CARGO")
     end
     if has(METRO) then
+        local sq = { x = L.x - 70, z = L.z + 10 }
         local prop = function(node, dx, dz, rot, scale, collide, props)
-            return placeGlb(METRO, node, L.x + dx, L.z + dz, rot, scale or 1, { collide = collide, props = props })
+            return placeGlb(METRO, node, sq.x + dx, sq.z + dz, rot, scale or 1, { collide = collide, props = props })
         end
-        prop("SM_Metro", -14, -12, 0.35, 1, 0.92)
-        local k = prop("SM_MagazineStand", 16, -20, 0.2, 1.1, 0.9)
+        prop("SM_Metro", -2, -24, 0, 1, 0.92)
+        local k = prop("SM_MagazineStand", 16, 8, 0.2, 1.1, 0.9)
         Gen.container(k, 0, 1.0, 0, "house", "NEWS KIOSK")
-        local v = prop("SM_VendingMachine", 19, -21.5, 0.2, 1.1, 0.9, { walk = false })
+        local v = prop("SM_VendingMachine", 18, 6, 0.2, 1.1, 0.9, { walk = false })
         Gen.container(v, 0, 1.0, 0, "house", "VENDING MACHINE", { { "water", 2 }, { "food", 1 } })
-        prop("SM_TrashBin02", 13, -19, 1.1, 1.2, 0.9, { walk = false })
-        prop("SM_TrashBin01", -22, 16, 0.3, 1.2, 0.9, { walk = false })
-        prop("SM_TrashBin01", 21, 20, 2.0, 1.2, 0.9, { walk = false })
-        prop("SM_Barrel", -20, 18, 0, 1.2, 0.9, { walk = false })
-        prop("SM_Barrel", -19, 19.2, 1.4, 1.2, 0.9, { walk = false })
-        prop("SM_Table", 22, 18, 0.5, 1.2, 0.9)
-        prop("SM_FloorSign", -9, -16, 2.2, 1.2)
+        prop("SM_TrashBin02", 13, 9, 1.1, 1.2, 0.9, { walk = false })
+        prop("SM_TrashBin01", -16, 16, 0.3, 1.2, 0.9, { walk = false })
+        prop("SM_Barrel", -18, 18, 0, 1.2, 0.9, { walk = false })
+        prop("SM_Barrel", -17, 19.2, 1.4, 1.2, 0.9, { walk = false })
+        prop("SM_Table", 20, -10, 0.5, 1.2, 0.9)
         Gltf.release(Gltf.load("assets/" .. METRO))
     end
     for _, f in ipairs({ PANELKA, KHRUSH, TOWER, BLOCKS, HELI }) do
         if has(f) then Gltf.release(Gltf.load("assets/" .. f)) end
     end
-    -- what else is lying around
-    wreck(Gen, "sedan_rusted", L.x + 24, L.z + 4, 1.4)
-    wreck(Gen, "sedan_blue", L.x - 4, L.z + 22, 0.1)
-    Gen.pickup(W.ctx(L.x + 17, L.z - 18, 0), 0, 0.1, 0, "medkit", 1, "medkit")
-    Gen.spawn(L.x, L.z, "zombie", 5, "district", { radius = 30 })
-    Gen.npc(L.x - 12, L.z + 30, "bandit", "guard", "BANDIT", nil, 1.2)
-    Gen.npc(L.x + 26, L.z - 26, "bandit", "guard", "BANDIT", nil, -2.0)
+    wreck(Gen, "sedan_rusted", L.x - 40, L.z - 20, 1.4)
+    wreck(Gen, "sedan_blue", L.x - 90, L.z + 40, 0.1)
 end
 
 function X.build(Gen, rng)
     buildStation(Gen, rng)
+    buildCity(Gen, rng)
     buildClutter(Gen, rng)
-    if W.district then buildDistrict(Gen, rng) end
 end
 
 return X

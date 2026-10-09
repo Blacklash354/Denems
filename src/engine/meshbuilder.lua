@@ -35,6 +35,23 @@ function MB.new(seed)
     return self
 end
 
+-- a builder that writes into this one's geometry but keeps its own transform, colour and
+-- material: generators can hold several contexts in the same chunk without disturbing each other
+function MB:view(seed)
+    local v = setmetatable({}, MB)
+    v.groups = self.groups
+    v.bounds = self.bounds
+    v.mat = "white"
+    v.r, v.g, v.b, v.a = 1, 1, 1, 1
+    v.jitter = self.jitter
+    v.texScale = self.texScale
+    v.maxEdge = self.maxEdge
+    v.m = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0 }
+    v.stack = {}
+    v.seed = seed or self:rand() * 2147483646 + 1
+    return v
+end
+
 function MB:rand()
     self.seed = (self.seed * 16807) % 2147483647
     return self.seed / 2147483647
@@ -99,13 +116,33 @@ function MB:xfn(x, y, z)
 end
 
 -- raw emit -------------------------------------------------------------------
+-- vertices go straight into growable FFI arrays (36 bytes each) instead of Lua tables, so even a
+-- large world fits comfortably in memory while it is being built
+local VSIZE = ffi.sizeof("psx_vertex")
+local VARR = ffi.typeof("psx_vertex[?]")
+
 local function group(self)
     local g = self.groups[self.mat]
     if not g then
-        g = { n = 0, v = {} }
+        g = { n = 0, cap = 0, buf = nil }
         self.groups[self.mat] = g
     end
     return g
+end
+
+local function reserve(g, extra)
+    local need = g.n + extra
+    if need <= g.cap then return end
+    local cap = math.max(64, g.cap * 2)
+    while cap < need do cap = cap * 2 end
+    local nb = VARR(cap)
+    if g.n > 0 then ffi.copy(nb, g.buf, g.n * VSIZE) end
+    g.buf, g.cap = nb, cap
+end
+
+local function byte(v)
+    if v >= 1 then return 255 elseif v <= 0 then return 0 end
+    return floor(v * 255)
 end
 
 -- emit a triangle already in builder-local coordinates (transform applied here)
@@ -124,17 +161,20 @@ function MB:tri(ax, ay, az, au, av, bx, by, bz, bu, bv, cx, cy, cz, cu, cv, nx, 
         nx, ny, nz = self:xfn(nx, ny, nz)
     end
     local g = group(self)
-    local v = g.v
-    local k = #v
+    reserve(g, 3)
     local b = self.bounds
-    local pts = { wax, way, waz, au, av, wbx, wby, wbz, bu, bv, wcx, wcy, wcz, cu, cv }
+    local buf, k = g.buf, g.n
+    local jit, r, gg, bb, a = self.jitter, self.r, self.g, self.b, byte(self.a)
     for i = 0, 2 do
-        local px, py, pz, u, vv = pts[i * 5 + 1], pts[i * 5 + 2], pts[i * 5 + 3], pts[i * 5 + 4], pts[i * 5 + 5]
-        local j = 1 + (self:rand() - 0.5) * 2 * self.jitter
-        v[k + 1], v[k + 2], v[k + 3], v[k + 4], v[k + 5] = px, py, pz, u, vv
-        v[k + 6], v[k + 7], v[k + 8] = nx, ny, nz
-        v[k + 9], v[k + 10], v[k + 11], v[k + 12] = self.r * j, self.g * j, self.b * j, self.a
-        k = k + 12
+        local px, py, pz, u, vv
+        if i == 0 then px, py, pz, u, vv = wax, way, waz, au, av
+        elseif i == 1 then px, py, pz, u, vv = wbx, wby, wbz, bu, bv
+        else px, py, pz, u, vv = wcx, wcy, wcz, cu, cv end
+        local j = 1 + (self:rand() - 0.5) * 2 * jit
+        local q = buf[k + i]
+        q.x, q.y, q.z, q.u, q.v = px, py, pz, u, vv
+        q.nx, q.ny, q.nz = nx, ny, nz
+        q.r, q.g, q.b, q.a = byte(r * j), byte(gg * j), byte(bb * j), a
         if px < b[1] then b[1] = px end
         if py < b[2] then b[2] = py end
         if pz < b[3] then b[3] = pz end
@@ -142,7 +182,7 @@ function MB:tri(ax, ay, az, au, av, bx, by, bz, bu, bv, cx, cy, cz, cu, cv, nx, 
         if py > b[5] then b[5] = py end
         if pz > b[6] then b[6] = pz end
     end
-    g.n = g.n + 3
+    g.n = k + 3
 end
 
 -- emit one vertex of an imported model: t = { x,y,z, u,v, nx,ny,nz, r,g,b,a } in builder-local space.
@@ -152,11 +192,11 @@ function MB:vertex(t)
     local px, py, pz = self:xf(t[1], t[2], t[3])
     local nx, ny, nz = self:xfn(t[6], t[7], t[8])
     local g = group(self)
-    local v = g.v
-    local k = #v
-    v[k + 1], v[k + 2], v[k + 3], v[k + 4], v[k + 5] = px, py, pz, t[4], t[5]
-    v[k + 6], v[k + 7], v[k + 8] = nx, ny, nz
-    v[k + 9], v[k + 10], v[k + 11], v[k + 12] = t[9] * self.r, t[10] * self.g, t[11] * self.b, t[12] * self.a
+    reserve(g, 1)
+    local q = g.buf[g.n]
+    q.x, q.y, q.z, q.u, q.v = px, py, pz, t[4], t[5]
+    q.nx, q.ny, q.nz = nx, ny, nz
+    q.r, q.g, q.b, q.a = byte(t[9] * self.r), byte(t[10] * self.g), byte(t[11] * self.b), byte(t[12] * self.a)
     local b = self.bounds
     if px < b[1] then b[1] = px end
     if py < b[2] then b[2] = py end
@@ -383,25 +423,16 @@ function MB:panel(ax, ay, az, bx, by, bz, cx, cy, cz, dx, dy, dz)
 end
 
 -- build -------------------------------------------------------------------
+local function toData(g)
+    local data = love.data.newByteData(g.n * VSIZE)
+    ffi.copy(data:getFFIPointer(), g.buf, g.n * VSIZE)
+    return data
+end
+
 local function toMesh(g)
-    local n = g.n
-    if n == 0 then return nil end
-    local data = love.data.newByteData(n * ffi.sizeof("psx_vertex"))
-    local p = ffi.cast("psx_vertex*", data:getFFIPointer())
-    local v = g.v
-    for i = 0, n - 1 do
-        local k = i * 12
-        local q = p[i]
-        q.x, q.y, q.z, q.u, q.v = v[k + 1], v[k + 2], v[k + 3], v[k + 4], v[k + 5]
-        q.nx, q.ny, q.nz = v[k + 6], v[k + 7], v[k + 8]
-        local r, gg, b, a = v[k + 9], v[k + 10], v[k + 11], v[k + 12]
-        q.r = r >= 1 and 255 or (r <= 0 and 0 or floor(r * 255))
-        q.g = gg >= 1 and 255 or (gg <= 0 and 0 or floor(gg * 255))
-        q.b = b >= 1 and 255 or (b <= 0 and 0 or floor(b * 255))
-        q.a = a >= 1 and 255 or (a <= 0 and 0 or floor(a * 255))
-    end
-    local mesh = love.graphics.newMesh(FORMAT, n, "triangles", "static")
-    mesh:setVertices(data)
+    if g.n == 0 then return nil end
+    local mesh = love.graphics.newMesh(FORMAT, g.n, "triangles", "static")
+    mesh:setVertices(toData(g))
     return mesh
 end
 
@@ -421,6 +452,8 @@ function MB:build()
             model.tris = model.tris + g.n / 3
         end
     end
+    -- free the buffers (views of this builder share the group tables)
+    for _, g in pairs(self.groups) do g.buf, g.cap, g.n = nil, 0, 0 end
     local b = self.bounds
     model.cx, model.cy, model.cz = (b[1] + b[4]) / 2, (b[2] + b[5]) / 2, (b[3] + b[6]) / 2
     model.radius = sqrt((b[4] - b[1]) ^ 2 + (b[5] - b[2]) ^ 2 + (b[6] - b[3]) ^ 2) / 2
@@ -431,26 +464,10 @@ end
 -- raw per-material vertex data (kept so destructible objects can be re-batched later)
 function MB:buildRaw()
     local raw = {}
-    local size = ffi.sizeof("psx_vertex")
     for name, g in pairs(self.groups) do
-        if g.n > 0 then
-            local data = love.data.newByteData(g.n * size)
-            local p = ffi.cast("psx_vertex*", data:getFFIPointer())
-            local v = g.v
-            for i = 0, g.n - 1 do
-                local k = i * 12
-                local q = p[i]
-                q.x, q.y, q.z, q.u, q.v = v[k + 1], v[k + 2], v[k + 3], v[k + 4], v[k + 5]
-                q.nx, q.ny, q.nz = v[k + 6], v[k + 7], v[k + 8]
-                local r, gg, b, a = v[k + 9], v[k + 10], v[k + 11], v[k + 12]
-                q.r = r >= 1 and 255 or (r <= 0 and 0 or floor(r * 255))
-                q.g = gg >= 1 and 255 or (gg <= 0 and 0 or floor(gg * 255))
-                q.b = b >= 1 and 255 or (b <= 0 and 0 or floor(b * 255))
-                q.a = a >= 1 and 255 or (a <= 0 and 0 or floor(a * 255))
-            end
-            raw[name] = { data = data, n = g.n }
-        end
+        if g.n > 0 then raw[name] = { data = toData(g), n = g.n } end
     end
+    for _, g in pairs(self.groups) do g.buf, g.cap, g.n = nil, 0, 0 end
     return raw, self.bounds
 end
 
@@ -501,6 +518,13 @@ end
 function MB:isEmpty()
     for _, g in pairs(self.groups) do if g.n > 0 then return false end end
     return true
+end
+
+-- number of vertices emitted so far (all materials)
+function MB:vertexCount()
+    local n = 0
+    for _, g in pairs(self.groups) do n = n + g.n end
+    return n
 end
 
 return MB

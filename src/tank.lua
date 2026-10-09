@@ -337,7 +337,7 @@ function T.update(dt)
                 G.effects.smoke(ex, ey, ez, 0.35 + T.rpm / 6000, 0.25, 0.25, 0.27, 2.5)
             end
         end
-        if G.creatures then G.creatures.noise(T.x, T.y, T.z, 35 + T.rpm / 3000 * 70, "engine") end
+        if G.humans then G.humans.noise(T.x, T.y, T.z, 35 + T.rpm / 3000 * 70) end
     else
         T.rpm = U.damp(T.rpm, T.engineStarting > 0 and 300 or 0, 3, dt)
         T.gear = 0
@@ -451,7 +451,7 @@ function T.fire()
     if G.camera then G.camera.shake(inside and 1.2 or 0.7) end
     if G.audio then G.audio.play("cannon", { x = mx, y = my, z = mz, big = true }) end
     if inside and G.audio then G.audio.ring(1.0) end
-    if G.creatures then G.creatures.noise(mx, my, mz, 450, "cannon") end
+    if G.humans then G.humans.noise(mx, my, mz, 450) end
     -- brass case ejected inside
     G.effects.casing("tank", -0.6, 2.4, 0.2, true)
     T.flicker = 0

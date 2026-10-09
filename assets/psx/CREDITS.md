@@ -8,7 +8,6 @@ Source repositories: https://github.com/Spyridon-Pikoulas
 
 | Folder | Pack | Credit line |
 |---|---|---|
-| `assets/psx/creatures/` | PSX Creatures Free | PSX Creatures Free by heyheythere - https://heyheythere.itch.io/psx-creatures-free - CC BY 4.0 |
 | `assets/psx/vehicles/` | PSX Vehicles Free | PSX Vehicles Free by heyheythere - https://heyheythere.itch.io/psx-vehicles-free - CC BY 4.0 |
 | `assets/psx/gas_station_kit/` | PSX Gas Station Kit Free | see `LICENSE.txt` in the folder |
 | `assets/psx/forest/` | PSX Forest Free | see `LICENSE.txt` in the folder |
@@ -38,7 +37,8 @@ snow is added at load time; the textures are renamed to the game's material name
 | `psx_ak-74.glb` | PSX AK-74 by Charckes (charlesmoch) | Sketchfab Standard (**may not be redistributed**, e.g. in a public repository) |
 | `PSXMiscGuns/` | PSX Misc Guns pack (M14-style rifle, Makarov, 1911, shotgun, flare gun) | no licence file in the folder - check the download page |
 
-How they are used: the character figures are cut into rigid parts for the NPC rig
-(`src/characters.lua`); the guns become the first-person rifle, AK and pistol (`src/weapons.lua`);
-the buildings, metro car, props and helicopter make up the microdistrict (`src/world_psx.lua`).
+How they are used: some character figures (masked raiders, NBC-suited troops, civilians in jackets) are cut into
+rigid parts for the NPC rig (`src/characters.lua`); the guns become the first-person rifle, AK and pistol
+(`src/weapons.lua`, the AK's magazine is cut out of the mesh for reloads); the buildings, metro car, props and
+helicopter fill the city of Zarechny and the airfield (`src/world_psx.lua`).
 All of these are optional: without the files the game falls back to its procedural models.
