@@ -86,8 +86,9 @@ VM.RIGS = {
         track = "rifle",
     },
     pistol = { -- Makarov
-        grip = pose({ -0.012, -0.0, 0.0 }, { 0.5, -0.85, -0.2 }, { 0.2, 0.2, 1 }),
-        guard = pose({ -0.005, -0.012, -0.035 }, { 0.6, -0.6, 0.5 }, { -0.2, 0.1, -1 }),
+        -- held in the right hand; the left one rests out of view and only comes up to reload
+        grip = pose({ -0.02, -0.045, 0.0 }, { 0.5, -0.85, -0.2 }, { 0.2, 0.2, 1 }),
+        guard = pose({ -0.2, -0.32, -0.22 }, { 0.6, 0.3, 0.3 }, { -0.2, 0.3, -1 }),
         magTop = { 0.0, 0.03, 0 }, magGrab = pose({ -0.005, -0.03, -0.03 }, { 0.2, 0.2, 1 }, { -0.3, -0.5, -0.8 }),
         charge = pose({ -0.035, 0.05, -0.02 }, { 0.6, 0.0, 0.8 }, { 0, 1, -0.2 }), chargeTravel = 0.03,
         track = "pistol",

@@ -24,7 +24,7 @@ Wp.DEFS = {
             hip = { 0.13, -0.11, 0.46 }, ads = { 0.0, -0.074, 0.25 }, casing = 0 },
     pistol = { name = "TT-33 PISTOL", ammo = "pistol_ammo", mag = 8, damage = 32, interval = 0.18, reload = 1.6, spread = 0.006,
                hipSpread = 0.02, noise = 80, kick = 0.03, sound = "pistol", fov = 62, auto = false,
-               hip = { 0.09, -0.115, 0.52 }, ads = { 0.0, -0.098, 0.36 }, casing = 0 },
+               hip = { 0.11, -0.095, 0.46 }, ads = { 0.0, -0.098, 0.36 }, casing = 0 },
     shotgun = { name = "PUMP SHOTGUN", ammo = "shotgun_ammo", mag = 6, damage = 15, pellets = 9, interval = 0.95, reload = 2.6, shellTime = 0.62,
                 spread = 0.03, hipSpread = 0.045, noise = 140, kick = 0.075, sound = "rifle", fov = 60, auto = false, pump = true,
                 hip = { 0.13, -0.11, 0.52 }, ads = { 0.0, -0.066, 0.3 }, casing = 0, range = 60 },
@@ -206,7 +206,7 @@ function Wp.init(game)
 end
 
 function Wp.reset()
-    Wp.current = "rifle"
+    Wp.current = PA.has(PA.AK) and "smg" or "rifle"
     Wp.mag = {}
     for id, def in pairs(Wp.DEFS) do Wp.mag[id] = def.mag end
     Wp.shotT = 99
@@ -230,7 +230,7 @@ end
 function Wp.serialize() return { current = Wp.current, mag = U.copy(Wp.mag) } end
 function Wp.load(s)
     if s then
-        Wp.current = Wp.DEFS[s.current] and s.current or "rifle"
+        Wp.current = Wp.DEFS[s.current] and s.current or Wp.current
         for k, v in pairs(s.mag or {}) do if Wp.mag[k] then Wp.mag[k] = v end end
     end
 end

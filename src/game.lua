@@ -781,8 +781,8 @@ function Game.drawHelp(a)
     local UI = G.ui
     local lines = {
         "WASD MOVE   SHIFT SPRINT   C CROUCH   SPACE JUMP   E INTERACT / LEAVE SEAT",
-        "F FLASHLIGHT   LMB FIRE   RMB AIM   R RELOAD   1-4 OR WHEEL WEAPONS   TAB INVENTORY   M MAP",
-        "J OBJECTIVES   F5 QUICKSAVE   F9 QUICKLOAD   ESC PAUSE",
+        "F FLASHLIGHT   LMB FIRE   RMB AIM   R RELOAD   1-4 OR WHEEL WEAPONS   TAB INVENTORY AND CLOTHES   M MAP",
+        "F5 QUICKSAVE   F9 QUICKLOAD   ESC PAUSE",
     }
     for i, l in ipairs(lines) do UI.text(l, 0, 250 + i * 10, { 0.85, 0.85, 0.8, a * 0.9 }, UI.fontS, "center", UI.VW) end
 end
