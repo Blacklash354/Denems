@@ -332,7 +332,10 @@ function Wp.explode(x, y, z, radius, damage, owner, skipObj)
     end
     if G.enemies then G.enemies.splash(x, y, z, radius, damage, skipObj) end
     if G.humans then G.humans.splash(x, y, z, radius, damage) end
-    if G.destruction then G.destruction.splash(x, y, z, radius * 1.1, damage * 2.5) end
+    if G.destruction then
+        G.destruction.splash(x, y, z, radius * 1.1, damage * 2.5)
+        if radius >= 4 then G.destruction.blastTrees(x, y, z, radius * 1.2) end
+    end
 end
 
 function Wp.updateProjectiles(dt)
@@ -384,6 +387,9 @@ function Wp.shellImpact(p, x, y, z, what, obj, nx, ny, nz, dx, dy, dz)
         G.humans.damage(obj.h, 500, p.owner == "player")
     elseif what == "world" and obj and obj.obj and G.destruction then
         G.destruction.damage(obj.obj, he and 700 or 520, "explosion", x, y, z)
+    elseif what == "world" and obj and obj.treeRec and G.destruction then
+        -- a shell through a trunk fells it along the shell's path
+        G.destruction.knockTree(obj.treeRec, dx or 1, dz or 0, 0.8)
     end
     Wp.explode(x, y, z, he and 10 or 4, he and 220 or 70, p.owner)
     if what == "terrain" then

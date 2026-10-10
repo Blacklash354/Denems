@@ -352,6 +352,31 @@ local function build()
             end
             return lp(s) * 0.9
         end)
+        -- a trunk giving way: splintering cracks, a groaning creak, then the crown rushing down
+        local lpc, lpw, lpk = lowpass(2200), lowpass(700), lowpass(500)
+        local cracks = {}
+        for i = 1, 9 do cracks[i] = random() * 0.45 end
+        local ph = 0
+        S.tree_crack = gen(1.8, function(t)
+            local s = 0
+            for _, c in ipairs(cracks) do
+                local d = t - c
+                if d > 0 and d < 0.08 then s = s + noise() * exp(-d * 60) * 1.2 end
+            end
+            local f = 95 + 40 * sin(t * 7) + 30 * t
+            ph = ph + f / SR
+            local creak = ((ph % 1) * 2 - 1) * env(t, 0.15, 0.35) * 0.35 * (t < 0.9 and 1 or 0)
+            local whoosh = lpw(noise()) * 1.4 * (t > 0.5 and env(t - 0.5, 0.5, 0.4) or 0)
+            return lpc(s) + lpk(creak) * 2 + whoosh
+        end)
+        -- a tree coming down on the hull: dull thud, ringing armour, branches and snow
+        local lpt, lpb = lowpass(160), lowpass(1200)
+        S.tree_on_tank = gen(1.3, function(t)
+            local thud = sin(TAU * 62 * t) * exp(-t * 9) * 0.9 + lpt(noise()) * 3 * exp(-t * 7)
+            local ring = (sin(TAU * 385 * t) + sin(TAU * 612 * t) * 0.7 + sin(TAU * 947 * t) * 0.4) * exp(-t * 6) * 0.25
+            local twigs = lpb(noise()) * exp(-t * 3) * 0.8
+            return thud + ring + twigs
+        end)
         local lp2, lp3 = lowpass(400), lowpass(1500)
         S.collapse = gen(3.5, function(t)
             local rumble = lp2(noise()) * 4 * env(t, 0.1, 1.2)

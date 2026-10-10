@@ -534,6 +534,7 @@ function Game.newGame()
     G.enemies.reset()
     G.humans.reset()
     G.snow.reset()
+    G.destruction.reset()
     G.effects.clear()
     for _, c in ipairs(W.containers) do c.loot = U.copy(c.initialLoot) c.searched = false c.dirty = false c.countedVillage = false end
     for _, p in ipairs(W.pickups) do p.taken = false p.count = p.initialCount end
@@ -658,6 +659,7 @@ function Game.update(dt)
         updateEmitters(dt)
         updateDoors(dt)
         G.effects.update(dt)
+        G.destruction.update(dt)
     end
     G.camera.update(dt)
     G.ui.update(dt)
@@ -710,7 +712,7 @@ function Game.drawWorld()
     R.beginFrame()
     W.draw(under)
     G.effects.drawDecals()
-    if not under then G.snow.drawDrifts() end
+    if not under then G.snow.drawDrifts() G.destruction.draw() end
     -- doors
     for i, d in ipairs(W.doors) do
         if not (d.obj and not d.obj.alive) and R.visible(d.x, d.y + 1, d.z, 3) then

@@ -375,6 +375,7 @@ function W.initChunks()
     W.npcs, W.guitars, W.squads, W.blocks = {}, {}, {}, {}
     W.dobjs = {}
     W.instanceKinds = {}
+    W.trees = {}
 end
 
 -- context for a destructible object: geometry goes into its own builder so it can be removed later
@@ -546,6 +547,17 @@ function W.addInstance(name, x, y, z, yaw, scale, tint)
     local list = ch.inst[name]
     if not list then list = {} ch.inst[name] = list end
     list[#list + 1] = { x, y, z, yaw or 0, scale or 1, tint or 1 }
+    return ch, #list
+end
+
+-- hide / show one instance (a tree knocked down, or put back up on a reset). Only with hardware
+-- instancing: baked instances are part of the chunk geometry.
+function W.setInstanceVisible(ch, name, idx, visible)
+    local d = ch.instByKind and ch.instByKind[name]
+    if not d then return false end
+    local t = d.list[idx]
+    d.mesh:setVertex(idx, t[1], t[2], t[3], t[4], visible and t[5] or 0, t[6])
+    return true
 end
 
 local INST_FORMAT = { { "InstXf", "float", 4 }, { "InstSc", "float", 2 } }
@@ -565,8 +577,11 @@ local function buildInstances()
             if model and #list > 0 then
                 local verts = {}
                 for i, t in ipairs(list) do verts[i] = { t[1], t[2], t[3], t[4], t[5], t[6] } end
-                local im = love.graphics.newMesh(INST_FORMAT, verts, "points", "static")
-                c.instDraw[#c.instDraw + 1] = { model = model, mesh = im, count = #list }
+                local im = love.graphics.newMesh(INST_FORMAT, verts, "points", "dynamic")
+                local d = { model = model, mesh = im, count = #list, list = list }
+                c.instDraw[#c.instDraw + 1] = d
+                c.instByKind = c.instByKind or {}
+                c.instByKind[name] = d
             end
         end
         c.inst = nil

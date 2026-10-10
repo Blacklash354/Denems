@@ -178,16 +178,50 @@ end
 ---------------------------------------------------------------------------
 E.debrisList = {}
 E.debrisModels = {}
-local function debrisModel(mat)
-    local m = E.debrisModels[mat]
+local WOODY = { wood = true, cloth = true, bark = true, planks = true, crate = true }
+local METAL = { metal = true, vehicle = true, rust = true, sheet = true, car = true }
+-- three shapes per kind of material: splintered planks, bent sheet metal, broken masonry
+local function debrisModel(mat, v)
+    local key = mat .. v
+    local m = E.debrisModels[key]
     if m then return m end
-    local mb = MB.new(9)
+    local mb = MB.new(9 + v * 7)
     mb.texScale = 2
-    mb:material(mat):color(0.85, 0.85, 0.85)
-    mb:hexa({ { -0.5, -0.4, -0.45 }, { 0.5, -0.5, -0.4 }, { 0.45, -0.45, 0.5 }, { -0.45, -0.5, 0.45 },
-              { -0.4, 0.45, -0.5 }, { 0.5, 0.4, -0.45 }, { 0.4, 0.5, 0.45 }, { -0.5, 0.4, 0.4 } })
+    if WOODY[mat] then
+        mb:material(mat):color(0.85, 0.8, 0.74)
+        local l = 0.7 + v * 0.3
+        -- a plank snapped at both ends: ragged, one corner torn away
+        mb:hexa({ { -l, -0.06, -0.13 }, { l * 0.75, -0.06, -0.13 }, { l, -0.06, 0.12 }, { -l * 0.85, -0.06, 0.13 },
+                  { -l * 0.95, 0.06, -0.13 }, { l * 0.8, 0.06, -0.12 }, { l * 0.9, 0.06, 0.13 }, { -l * 0.7, 0.06, 0.12 } })
+        if v ~= 2 then
+            -- a long splinter peeling off
+            mb:hexa({ { l * 0.3, 0.05, -0.04 }, { l * 1.25, 0.12, -0.02 }, { l * 1.25, 0.12, 0.0 }, { l * 0.3, 0.05, 0.04 },
+                      { l * 0.3, 0.09, -0.04 }, { l * 1.25, 0.13, -0.02 }, { l * 1.25, 0.13, 0.0 }, { l * 0.3, 0.09, 0.04 } })
+        end
+    elseif METAL[mat] then
+        mb:material("metal"):color(0.55, 0.52, 0.5)
+        -- a torn panel bent along a crease
+        local w = 0.5 + v * 0.15
+        local a = 0.5 + v * 0.35
+        mb:box(-w, -0.02, -0.4, 0, 0.02, 0.4)
+        mb:push() mb:rotateZ(a) mb:box(0, -0.02, -0.38, w * 0.9, 0.02, 0.35) mb:pop()
+    else
+        mb:material(mat):color(0.85, 0.85, 0.85)
+        if v == 3 then
+            -- a slab of wall with the rebar sticking out of the break
+            mb:hexa({ { -0.6, -0.12, -0.45 }, { 0.55, -0.12, -0.5 }, { 0.6, -0.12, 0.45 }, { -0.5, -0.12, 0.5 },
+                      { -0.58, 0.12, -0.42 }, { 0.5, 0.12, -0.5 }, { 0.62, 0.12, 0.4 }, { -0.55, 0.12, 0.48 } })
+            mb:material("metal"):color(0.35, 0.25, 0.2)
+            mb:box(0.55, -0.02, -0.25, 0.95, 0.02, -0.21)
+            mb:box(0.55, -0.02, 0.15, 0.85, 0.02, 0.19)
+        else
+            local k = v == 1 and 1 or 0.7
+            mb:hexa({ { -0.5, -0.4 * k, -0.45 }, { 0.5, -0.5 * k, -0.4 }, { 0.45, -0.45 * k, 0.5 }, { -0.45, -0.5 * k, 0.45 },
+                      { -0.4, 0.45 * k, -0.5 }, { 0.5, 0.3 * k, -0.45 }, { 0.3, 0.5 * k, 0.45 }, { -0.5, 0.4 * k, 0.3 } })
+        end
+    end
     m = mb:build()
-    E.debrisModels[mat] = m
+    E.debrisModels[key] = m
     return m
 end
 
@@ -196,24 +230,70 @@ function E.debris(x, y, z, mat, n, power, size)
         if #E.debrisList > 160 then table.remove(E.debrisList, 1) end
         local a = rnd() * 6.28
         local sp = power * (0.3 + rnd() * 0.7)
+        local tint = 0.7 + rnd() * 0.3
         E.debrisList[#E.debrisList + 1] = { x = x + rs(0.5), y = y + rnd() * 0.5, z = z + rs(0.5), vx = math.cos(a) * sp, vy = 2 + rnd() * power,
-            vz = math.sin(a) * sp, rx = rnd() * 6, ry = rnd() * 6, sx = rs(8), sy = rs(8), s = size * (0.4 + rnd()), model = debrisModel(mat),
-            life = 14 + rnd() * 8, rest = false, mat = {} }
+            vz = math.sin(a) * sp, rx = rnd() * 6, ry = rnd() * 6, sx = rs(8), sy = rs(8), s = size * (0.4 + rnd()),
+            model = debrisModel(mat, math.random(1, 3)), tint = { tint, tint, tint, 1 }, life = 14 + rnd() * 8, rest = false, mat = {} }
     end
+end
+
+-- top of the tank's hull / turret at a hull-space point (nil off the tank)
+local function tankTop(lx, lz)
+    if lx < -4.0 or lx > 3.9 or lz < -2.0 or lz > 2.0 then return nil end
+    local dx = lx - 0.35
+    if dx * dx + lz * lz < 1.6 * 1.6 then return 3.5 end
+    if lx > 3.15 or math.abs(lz) > 1.86 then return 1.62 end
+    return 2.43
 end
 
 local function updateDebris(dt)
     local W = G.world
+    local T = G.tank
     for i = #E.debrisList, 1, -1 do
         local d = E.debrisList[i]
         d.life = d.life - dt
         if d.life <= 0 then table.remove(E.debrisList, i)
+        elseif d.onTank then
+            -- riding on the tank: carried along, shaken loose bit by bit, slides off the back or the sides
+            local o = d.onTank
+            local sp = math.abs(T.speed)
+            local gx, _, gz = T.frame:dirToLocal(0, -1, 0)
+            o.vx = o.vx - (T.speed - (o.lastSpeed or T.speed)) * 0.6 + gx * 5 * dt + (math.random() - 0.5) * sp * 0.6 * dt
+            o.vz = o.vz + (T.yawRate or 0) * T.speed * dt * 0.8 + gz * 5 * dt + (math.random() - 0.5) * sp * 0.6 * dt
+            o.lastSpeed = T.speed
+            o.vx, o.vz = o.vx * math.exp(-2 * dt), o.vz * math.exp(-2 * dt)
+            -- the rattle of driving shakes it slowly towards the back
+            o.lx, o.lz = o.lx + (o.vx - sp * 0.1) * dt, o.lz + o.vz * dt
+            local top = tankTop(o.lx, o.lz)
+            if not top or T.destroyed then
+                local wx, wy, wz = T.frame:toWorld(o.lx, o.ly, o.lz)
+                local cy, sy = math.cos(T.yaw), math.sin(T.yaw)
+                d.x, d.y, d.z = wx, wy, wz
+                d.vx, d.vy, d.vz = cy * T.speed, 0, sy * T.speed
+                d.onTank, d.rest = nil, false
+            else
+                o.ly = top + d.s * 0.35
+                d.x, d.y, d.z = T.frame:toWorld(o.lx, o.ly, o.lz)
+                d.ry = o.ry + T.yaw
+            end
         elseif not d.rest then
             d.vy = d.vy - 12 * dt
             d.x, d.y, d.z = d.x + d.vx * dt, d.y + d.vy * dt, d.z + d.vz * dt
             d.rx, d.ry = d.rx + d.sx * dt, d.ry + d.sy * dt
+            -- landing on the tank's decks and turret roof
+            if d.vy < 0 and not T.destroyed and math.abs(d.x - T.x) < 5 and math.abs(d.z - T.z) < 5 then
+                local lx, ly, lz = T.frame:toLocal(d.x, d.y, d.z)
+                local top = tankTop(lx, lz)
+                if top and ly < top + d.s * 0.35 and ly > top - 0.6 then
+                    d.onTank = { lx = lx, ly = top + d.s * 0.35, lz = lz, vx = 0, vz = 0, ry = d.ry - T.yaw }
+                    d.life = math.max(d.life, 30)
+                    if G.audio and math.random() < 0.5 then G.audio.play("clang", { x = d.x, y = d.y, z = d.z, volume = 0.25 + d.s * 0.6 }) end
+                end
+            end
             local gy = W.surfaceHeight(d.x, d.z, d.y + 0.5, 0.1) + d.s * 0.4
-            if d.y < gy then
+            if d.onTank then
+                -- (landed this frame)
+            elseif d.y < gy then
                 d.y = gy
                 if math.abs(d.vy) < 1.5 then d.rest = true
                 else
@@ -233,7 +313,8 @@ function E.drawDebris()
             local f = M3.frame()
             f:setYawPitchRoll(d.ry, d.rx, d.rx * 0.5)
             f.px, f.py, f.pz = d.x, d.y, d.z
-            R.drawModel(d.model, f:matrix(d.mat, d.s))
+            d.params = d.params or { tint = d.tint }
+            R.drawModel(d.model, f:matrix(d.mat, d.s), d.params)
         end
     end
 end

@@ -295,6 +295,9 @@ function T.update(dt)
         if hit and box and box.obj and G.destruction then
             crushed = G.destruction.ram(box.obj, math.abs(T.speed))
             if crushed and G.camera and G.player.frameName == "tank" then G.camera.shake(0.25) end
+        elseif hit and box and box.treeRec and G.destruction then
+            -- trees snap and come down (see destruction.lua)
+            crushed = G.destruction.ramTree(box, T.speed, c, s, dt)
         end
         if hit and not crushed then
             nx, nz = nx + px, nz + pz

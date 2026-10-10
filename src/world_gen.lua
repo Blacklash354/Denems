@@ -343,9 +343,15 @@ end
 -- one tree at x, z (instanced, with a trunk collider)
 local function tree(kind, x, z, s)
     local y = W.height(x, z)
-    W.addInstance(kind, x, y, z, rng:range(0, 6.28), s, rng:range(0.85, 1.05))
+    local yaw, tint = rng:range(0, 6.28), rng:range(0.85, 1.05)
+    local ch, idx = W.addInstance(kind, x, y, z, yaw, s, tint)
     local r = (kind == "birch" and 0.2 or 0.3) * s
-    W.colliders:add({ x - r, y - 1, z - r, x + r, y + 7 * s, z + r, walk = true, tree = true })
+    local box = { x - r, y - 1, z - r, x + r, y + 7 * s, z + r, walk = true, tree = true }
+    W.colliders:add(box)
+    -- remembered so it can be knocked down (destruction.lua)
+    local t = { i = #W.trees + 1, kind = kind, x = x, y = y, z = z, yaw = yaw, s = s, tint = tint, ch = ch, idx = idx, box = box }
+    W.trees[t.i] = t
+    box.treeRec = t
 end
 
 local function okForTree(x, z, minRoad)
