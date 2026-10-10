@@ -389,8 +389,9 @@ function UI.drawHUD()
     end
     if st and G.radar and not G.tank.destroyed then
         local optic = (st.name == "gunner" and G.stations.gunner.optic) or st.name == "mg"
-        if optic then G.radar.drawHUD(UI, 12, UI.VH - 110, 70)
-        elseif st.name == "driver" then G.radar.drawHUD(UI, 172, UI.VH - 84, 64) end
+        -- the driver turns his head to the radar screen and the compass (tank_driver.lua); only the
+        -- gunner, glued to the sight, gets them on the HUD
+        if optic then G.radar.drawHUD(UI, 12, UI.VH - 110, 70) end
     end
     radioPanel()
     messages()

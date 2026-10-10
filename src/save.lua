@@ -29,6 +29,7 @@ function S.save()
         humans = G.humans.serialize(),
         snow = G.snow.serialize(),
         destruction = G.destruction.serialize(),
+        mapSeen = G.map.serialize(),
         containers = searched,
         pickups = taken,
         doors = doors,
@@ -63,6 +64,7 @@ function S.apply(data)
     G.humans.reset(data.humans)
     G.snow.reset(data.snow)
     G.destruction.reset(data.destruction)
+    G.map.load(data.mapSeen)
     local taken = {}
     for _, id in ipairs(data.pickups or {}) do taken[id] = true end
     for _, p in ipairs(W.pickups) do p.taken = taken[p.id] or false end

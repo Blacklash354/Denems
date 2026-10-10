@@ -122,6 +122,18 @@ local function registerTank()
             use = function() if T.engineOn then T.stopEngine() else T.startEngine() end end })
     I.add({ space = "interior", frame = tankF, pos = { -1.45, 1.4, 0 }, radius = 0.9, prompt = "OPEN STORAGE",
             use = function() Game.openStorage() end })
+    -- the note Hans left taped to the instrument panel: where to go and how to find it
+    I.add({ space = "interior", frame = tankF, pos = { 2.76, 1.78, -1.12 }, radius = 0.2, prompt = "READ NOTE",
+            use = function()
+                Game.showMessage("NOTE - TAPED TO THE PANEL",
+                    "Kurt -\n\nThe others pulled out north, to Stutzpunkt Nord, the outpost by the lake past the big power station. " ..
+                    "I stayed with the tank as long as I could. The engine still turns over if you are gentle with the starter, and there is a " ..
+                    "little fuel; more in the garages up the road, if Ivan has left any.\n\n" ..
+                    "North is where the red needle points - the compass is on the wall right of the driver's slit, the red mark on its rim is our nose. " ..
+                    "Keep the needle up and keep going. It is a long way.\n\n" ..
+                    "The Russians hold the roads and the checkpoints. Some of them will let a man pass for a tin of meat. Do not count on it.\n\n- Hans")
+                G.missions.reveal("outpost")
+            end })
     I.add({ space = "interior", frame = tankF, pos = { 2.3, 1.85, 1.45 }, radius = 0.35,
             prompt = function()
                 if not T.radioOn then return "TURN RADIO ON" end
@@ -274,6 +286,13 @@ local function registerWorld()
                     G.missions.reveal("plant")
                 end })
     end
+    for _, n in ipairs(W.notes or {}) do
+        I.add({ space = "exterior", pos = { n.x, n.y, n.z }, radius = 0.5, range = 2.4, prompt = n.prompt,
+                use = function()
+                    Game.showMessage(n.title, n.body)
+                    if n.reveal then G.missions.reveal(n.reveal) end
+                end })
+    end
     if W.signalConsole then
         local t = W.signalConsole
         I.add({ space = "exterior", pos = { t.x, t.y, t.z }, radius = 0.8, range = 2.6, prompt = "ACTIVATE SIGNAL CONSOLE",
@@ -422,7 +441,11 @@ end
 
 function Game.talk(h)
     local H = G.humans
-    local lines = (h.key and H.LINES[h.key]) or { "Stay warm, friend. The cold takes the careless first.", "Nobody is coming for us. We keep the fire going anyway." }
+    local lines = (h.key and H.LINES[h.key])
+    if not lines and h.faction == "german" then
+        lines = { "Kurt! Welcome home. The Leutnant is by the fire.", "We thought the Ivans had you. Get something hot inside you." }
+    end
+    lines = lines or { "Stay warm, friend. The cold takes the careless first.", "Nobody is coming for us. We keep the fire going anyway." }
     h.talkIdx = ((h.talkIdx or 0) % #lines) + 1
     local body = lines[h.talkIdx]
     if not h.talked and h.key and H.GIFTS[h.key] then
@@ -481,8 +504,19 @@ function Game.drawTrade()
     UI.text("[E/ESC] LEAVE", x + 10, y + h - 14, UI.COL.dim, UI.fontS)
 end
 
+-- the way home: reaching the outpost in the north
+function Game.homecoming()
+    if Game.endingKind == "home" then return end
+    Game.endingKind = "home"
+    Game.state = "ending"
+    Game.endT = 0
+    love.mouse.setRelativeMode(false)
+    G.audio.play("sting", {})
+end
+
 function Game.ending()
     G.missions.event("signal_found")
+    Game.endingKind = "signal"
     Game.state = "ending"
     Game.endT = 0
     love.mouse.setRelativeMode(false)
@@ -523,6 +557,7 @@ function Game.init(game)
 end
 
 function Game.newGame()
+    Game.endingKind = nil
     local W = G.world
     G.tank.reset()
     G.player.reset()
@@ -535,6 +570,7 @@ function Game.newGame()
     G.humans.reset()
     G.snow.reset()
     G.destruction.reset()
+    G.map.reset()
     G.effects.clear()
     for _, c in ipairs(W.containers) do c.loot = U.copy(c.initialLoot) c.searched = false c.dirty = false c.countedVillage = false end
     for _, p in ipairs(W.pickups) do p.taken = false p.count = p.initialCount end
@@ -547,6 +583,7 @@ end
 function Game.loadGame()
     local data = G.save.read()
     if not data then return false end
+    Game.endingKind = data.missions and data.missions.finishedHome and "home" or nil
     G.effects.clear()
     G.save.apply(data)
     Game.start()
@@ -660,6 +697,7 @@ function Game.update(dt)
         updateDoors(dt)
         G.effects.update(dt)
         G.destruction.update(dt)
+        G.map.update(dt)
     end
     G.camera.update(dt)
     G.ui.update(dt)
@@ -828,8 +866,25 @@ function Game.drawEnding()
     local a = math.min(1, Game.endT / 3)
     lg.setColor(0, 0, 0, 0.85 * a)
     lg.rectangle("fill", 0, 0, UI.VW, UI.VH)
+    local title, body
+    if Game.endingKind == "home" then
+        title = "STUTZPUNKT NORD"
+        body = "A sentry rises out of the snow behind the sandbags, rifle up - and then lowers it. 'Kurt? Kurt Weber?'\n\n" ..
+            "They come out of the tents one by one, thin and grey and grinning, to look at the tank as if it were a horse that had found " ..
+            "its own way home. Somebody puts a tin cup of something hot into your hands. The war is over and nobody won, " ..
+            "but tonight there is a fire, and you are among your own.\n\n" ..
+            "Thank you for playing STEEL HEARTH."
+        UI.text(title, 0, 50, { 0.95, 0.72, 0.3, a }, UI.fontL, "center", UI.VW)
+        UI.text(body, 120, 90, { 0.88, 0.88, 0.84, a }, UI.fontS, "left", 400)
+        UI.text(string.format("TIME PLAYED %s", U.formatTime(Game.playTime)), 0, 230, { 0.6, 0.6, 0.6, a }, UI.fontS, "center", UI.VW)
+        if Game.endT > 2 then
+            if UI.button("CONTINUE EXPLORING", 220, 250, 200, 20) then Game.state = "play" love.mouse.setRelativeMode(true) end
+            if UI.button("MAIN MENU", 220, 276, 200, 20) then G.menu.open() end
+        end
+        return
+    end
     UI.text("THE SIGNAL", 0, 50, { 0.95, 0.72, 0.3, a }, UI.fontL, "center", UI.VW)
-    local body = "The console hums. Behind the reinforced glass of the reactor hall, a dozen frost-bitten faces turn toward you. " ..
+    body = "The console hums. Behind the reinforced glass of the reactor hall, a dozen frost-bitten faces turn toward you. " ..
         "They kept the transmitter alive for forty days, hoping someone - anyone - would answer.\n\n" ..
         "Somebody did. Out there the tank waits in the snow, engine ticking as it cools. There is fuel enough for one more journey south, " ..
         "and room inside the steel for everyone who can still walk.\n\n" ..

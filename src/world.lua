@@ -36,6 +36,8 @@ W.locations = {
     { id = "tower", name = "RADIO TOWER", area = "RADIO TOWER", x = 780, z = -1160, r = 45, icon = "tower", hill = 40 },
     { id = "bunker", name = "BUNKER", area = "OBJECT 12", x = -1430, z = -1380, r = 30, icon = "bunker" },
     { id = "plant", name = "NUCLEAR PLANT", area = "POWER PLANT", x = 280, z = -1540, r = 160, icon = "plant" },
+    -- where we are going: what is left of our own side, dug in by the frozen lake at the top of the map
+    { id = "outpost", name = "OUR BASE", area = "STUTZPUNKT NORD", x = 960, z = -1770, r = 70, icon = "base" },
 }
 for _, l in ipairs(W.locations) do W[l.id] = l end
 
@@ -376,6 +378,7 @@ function W.initChunks()
     W.dobjs = {}
     W.instanceKinds = {}
     W.trees = {}
+    W.notes = {}
 end
 
 -- context for a destructible object: geometry goes into its own builder so it can be removed later

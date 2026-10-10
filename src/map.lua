@@ -1,8 +1,10 @@
--- Stylised field map generated from the terrain. Unknown places are shown as "?".
+-- Stylised field map generated from the terrain, under a fog of war: only the ground you have seen
+-- yourself is drawn; places you have only read or heard about show as "NAME ?".
 local U = require("src.utils")
 local Map = {}
 local G
 local lg = love.graphics
+local FOG = 96          -- fog cells across the map (about 40 m each)
 
 function Map.init(game)
     G = game
@@ -26,6 +28,82 @@ function Map.init(game)
     Map.image = lg.newImage(data)
     Map.image:setFilter("nearest", "nearest")
     Map.span = span
+    Map.fogData = love.image.newImageData(FOG, FOG)
+    Map.fogImage = lg.newImage(Map.fogData)
+    Map.fogImage:setFilter("linear", "linear")
+    Map.reset()
+end
+
+---------------------------------------------------------------------------
+-- fog of war
+---------------------------------------------------------------------------
+function Map.reset()
+    Map.seen = {}
+    Map.fogT = 0
+    Map.fogData:mapPixel(function() return 0.07, 0.08, 0.09, 1 end)
+    Map.fogDirty = true
+end
+
+-- clear the fog within r metres of (x, z)
+function Map.reveal(x, z, r)
+    local cell = Map.span / FOG
+    local ci, cj = math.floor((x / Map.span + 0.5) * FOG), math.floor((z / Map.span + 0.5) * FOG)
+    local n = math.ceil(r / cell)
+    for i = ci - n, ci + n do
+        for j = cj - n, cj + n do
+            if i >= 0 and j >= 0 and i < FOG and j < FOG then
+                local k = j * FOG + i
+                if not Map.seen[k] then
+                    local wx, wz = (i + 0.5) / FOG * Map.span - Map.span / 2, (j + 0.5) / FOG * Map.span - Map.span / 2
+                    if (wx - x) ^ 2 + (wz - z) ^ 2 < r * r then
+                        Map.seen[k] = true
+                        Map.fogData:setPixel(i, j, 0.07, 0.08, 0.09, 0)
+                        Map.fogDirty = true
+                    end
+                end
+            end
+        end
+    end
+end
+
+function Map.update(dt)
+    Map.fogT = Map.fogT - dt
+    if Map.fogT > 0 then return end
+    Map.fogT = 0.5
+    local px, py, pz = G.player.feetWorld()
+    -- you see further from up on the tank than from the snow
+    local r = G.player.frameName == "tank" and 210 or 160
+    if G.world.isUnderground(px, py, pz) then r = 25 end
+    Map.reveal(px, pz, r)
+end
+
+-- run-length string of the seen cells for the save file
+function Map.serialize()
+    local out, run, cur = {}, 0, false
+    for k = 0, FOG * FOG - 1 do
+        local v = Map.seen[k] == true
+        if v ~= cur then out[#out + 1] = run run, cur = 0, v end
+        run = run + 1
+    end
+    out[#out + 1] = run
+    return table.concat(out, ",")
+end
+
+function Map.load(s)
+    Map.reset()
+    if type(s) ~= "string" then return end
+    local k, v = 0, false
+    for n in s:gmatch("%d+") do
+        n = tonumber(n)
+        if v then
+            for q = k, k + n - 1 do
+                Map.seen[q] = true
+                Map.fogData:setPixel(q % FOG, math.floor(q / FOG), 0.07, 0.08, 0.09, 0)
+            end
+        end
+        k, v = k + n, not v
+    end
+    Map.fogDirty = true
 end
 
 local function icon(kind, x, y, s, a)
@@ -102,6 +180,10 @@ function Map.draw(UI)
         if path.road.mat == "track" then lg.setColor(0.62, 0.58, 0.52, 0.6) else lg.setColor(0.72, 0.7, 0.66, 0.85) end
         if #pts >= 4 then lg.line(pts) end
     end
+    -- the ground you have not seen yet
+    if Map.fogDirty then Map.fogImage:replacePixels(Map.fogData) Map.fogDirty = false end
+    lg.setColor(1, 1, 1, 1)
+    lg.draw(Map.fogImage, x0, y0, 0, size / FOG, size / FOG)
     -- grid
     lg.setColor(1, 1, 1, 0.06)
     for i = 1, 7 do
@@ -114,10 +196,9 @@ function Map.draw(UI)
             icon(l.icon, mx, my, 1, 1)
             UI.text(l.name, mx + 9, my - 5, UI.COL.text, UI.fontS)
         elseif M.revealed[l.id] then
+            -- heard of, not seen: a rough guess in the fog
             icon(l.icon, mx, my, 1, 0.45)
             UI.text(l.name .. " ?", mx + 9, my - 5, UI.COL.amber, UI.fontS)
-        else
-            UI.text("?", mx - 5, my - 6, UI.COL.amber, UI.font, "center", 10)
         end
     end
     -- objective marker

@@ -62,6 +62,13 @@ LOOKS = {
         "legs": (M + "Swat.glb", "Swat_Legs", {"Swat": TROUSERS, "Swat_Black": DARK}),
         "feet": (M + "Adventurer.glb", "Adventurer_Feet", {"Grey": BOOTS, "Black": BOOTS}),
     },
+    # our own: German field grey, black leather webbing, the brimmed helmet greyed into a Stahlhelm
+    "german": {
+        "head": (M + "Worker.glb", "Worker_Head", {"Worker_Yellow": (0.36, 0.38, 0.35)}),
+        "body": (M + "Swat.glb", "Swat_Body", {"Swat": (0.4, 0.42, 0.38), "Swat_Black": (0.12, 0.11, 0.1)}),
+        "legs": (M + "Swat.glb", "Swat_Legs", {"Swat": (0.37, 0.39, 0.35), "Swat_Black": (0.2, 0.2, 0.19)}),
+        "feet": (M + "Swat.glb", "Swat_Feet", {"Swat_Black": (0.08, 0.07, 0.07)}),
+    },
     # bandits: black hoodies and leather, dark jeans
     "bandit": {
         "head": (M + "Casual_2.glb", "Casual2_Head", {"Hair": (0.08, 0.07, 0.06)}),

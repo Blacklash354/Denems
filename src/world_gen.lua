@@ -1490,6 +1490,94 @@ local function buildDrifts()
     print(string.format("[gen] %d snow drifts on the roads", #W.drifts))
 end
 
+-- notes: a sheet of paper weighed down with a stone (or a signpost); E reads it
+local function note(x, z, yaw, title, body, opts)
+    opts = opts or {}
+    local y = opts.y or W.height(x, z)
+    local c = W.ctx(x, z, yaw, { y = y })
+    if opts.sign then
+        c:mat("wood", 0.55, 0.45, 0.35)
+        c:solid(-0.06, 0, -0.06, 0.06, 2.1, 0.06)
+        c:mat("paper", 0.85, 0.82, 0.72)
+        c.mb:box(-0.03, 1.55, -0.05, 1.2, 1.85, 0.05)
+        c.mb:hexa({ { 1.2, 1.55, -0.05 }, { 1.45, 1.7, -0.05 }, { 1.45, 1.7, 0.05 }, { 1.2, 1.55, 0.05 },
+                    { 1.2, 1.85, -0.05 }, { 1.45, 1.7, -0.04 }, { 1.45, 1.7, 0.04 }, { 1.2, 1.85, 0.05 } })
+        c:mat("snow", 0.95, 0.97, 1)
+        c.mb:box(-0.03, 1.85, -0.06, 1.2, 1.9, 0.06)
+    else
+        c:mat("paper", 0.9, 0.88, 0.8)
+        c.mb:box(-0.12, 0.01, -0.09, 0.12, 0.02, 0.09)
+        c:mat("rubble", 0.6, 0.6, 0.6)
+        c.mb:sphere(0.04, 0.05, 0.02, 0.06, 0.04, 0.05, 5, 3)
+    end
+    W.notes[#W.notes + 1] = { x = x, y = y + (opts.sign and 1.7 or 0.1), z = z, title = title, body = body, reveal = opts.reveal,
+                              prompt = opts.sign and "READ SIGNPOST" or "READ NOTE" }
+end
+G.note = note
+
+-- what is left of our side: a sandbagged outpost by the lake at the top of the map
+local function buildOutpost()
+    local L = W.outpost
+    take(L.x, L.z, 40, 40)
+    local rot = 0.25
+    local bc = W.ctx(L.x, L.z, rot)
+    local function piece(kind, hp, opts) return (W.dctx(L.x, L.z, rot, kind, hp, opts)) end
+    local function at(lx, lz) return bc:toWorld(lx, 0, lz) end
+    -- sandbag ring, open to the south where you walk in
+    local walls = { { -24, -22, 24, -22 }, { -24, -22, -24, 20 }, { 24, -22, 24, 20 }, { -24, 20, -6, 20 }, { 6, 20, 24, 20 } }
+    for _, w in ipairs(walls) do Props.sandbags(piece("stone", 300, { crush = true }), w[1], w[2], w[3], w[4], 1.25) end
+    Props.watchtower(piece("wood", 260), -20, -18)
+    Props.watchtower(piece("wood", 260), 20, 16)
+    for i = 0, 4 do Props.hedgehog(piece("metal", 160), -16 + i * 8, 27 + (i % 2) * 2) end
+    -- tents, a fire, the radio mast
+    for i, t in ipairs({ { -12, -10, 0.1 }, { -2, -12, -0.05 }, { 9, -11, 0.08 }, { 14, 2, 1.6 } }) do
+        local x, z = at(t[1], t[2])
+        tent(x, z, rot + t[3], 2.6, 3.6, 1.9, "cloth", { 0.42, 0.44, 0.4 })
+    end
+    local fx, fz = at(-2, 0)
+    campfire(fx, fz, { 0.4, 2.0, 3.6, 5.1 })
+    fireBarrel(bc, 18, -14)
+    fireBarrel(bc, -18, 14)
+    local mast = piece("metal", 300)
+    mast:mat("metal", 0.35, 0.35, 0.35)
+    mast:solid(-16.1, 0, 4.9, -15.9, 9, 5.1)
+    mast:beam(-16, 9, 5, -19, 0, 5, 0.03) mast:beam(-16, 9, 5, -13, 0, 5, 0.03) mast:beam(-16, 9, 5, -16, 0, 8, 0.03)
+    -- trucks and a halftrack under snow, supplies
+    local x1, z1 = at(-14, 26) Props.truck(V(x1, z1, rot + 1.4), 0, 0, 0, false)
+    local x2, z2 = at(30, -4) Props.tankWreck(TW(x2, z2, rot - 1.2), 0, 0, 0, false)
+    for i = 0, 3 do Props.crate(piece("wood", 50, { crush = true }), 4 + i * 1.1, 0, -4 - (i % 2) * 1.2, 0.85) end
+    container(bc, 5, 0.3, -3, "military", "SUPPLY CRATES", { { "fuel", 2 }, { "food", 4 }, { "repair_kit", 2 }, { "ap_shell", 6 } })
+    -- the garrison
+    npc(fx + 2.3, fz, "german", "sit", "LEUTNANT BRANDT", "brandt", math.pi)
+    npc(fx - 2.3, fz + 0.4, "german", "sit", "LANDSER", nil, 0)
+    local function man(lx, lz, role, yaw) local x, z = at(lx, lz) npc(x, z, "german", role, "LANDSER", nil, rot + yaw) end
+    man(-4, 22, "guard", math.pi / 2)
+    man(4, 22, "guard", math.pi / 2)
+    man(-20, -18, "guard", -math.pi / 2)
+    man(16, -16, "patrol", 0)
+    man(-10, 8, "patrol", math.pi)
+end
+
+-- the notes that point you north
+local function buildNotes()
+    local K, C, T, P = W.kolkhoz, W.checkpoint, W.tower, W.plant
+    note(K.x + 18, K.z - 26, 0.4, "FIELD POSTCARD - NEVER SENT",
+        "Pencil, in German, the card stiff with frost:\n\n'Dear Mother - we are pulling back north again. The Leutnant says the outpost by the lake " ..
+        "will hold until spring; nobody believes him, but there is nowhere else to go. Due north from the farm, past the big power station, " ..
+        "where the map runs out. If this card reaches you, I am somewhere between here and the lake.'", { reveal = "outpost" })
+    local cx, cz = C.x - 9, C.z + 8
+    note(cx, cz, 1.2, "ORDER No. 117 - TRANSLATED IN PENCIL",
+        "A Red Army order, a German translation scribbled between the lines:\n\n'All German stragglers moving NORTH towards the lake " ..
+        "positions are to be detained and brought to the base for questioning. Do not engage their armour in open ground - " ..
+        "report it. Checkpoint crews are reminded that food issued for prisoners is not for trade.'", { reveal = "outpost" })
+    note(T.x - 40, T.z - 70, -0.9, "SIGNPOST",
+        "An arrow nailed to a pole, the paint half gone: 'STUTZPUNKT NORD  4 KM' - pointing north-east, along the ridge, " ..
+        "past the cooling towers. Somebody has scratched underneath: 'WIR WARTEN' - we are waiting.", { sign = true, reveal = "outpost" })
+    note(P.x + 200, P.z - 120, -0.7, "SIGNPOST",
+        "'STUTZPUNKT NORD  1 KM'. Under it a strip of cloth tied in a bow - field grey. Someone has kept this sign clear of snow.",
+        { sign = true, reveal = "outpost" })
+end
+
 -- more men under arms: every army post and bandit hideout gets a garrison on open ground around it
 local GARRISONS = {
     military = { checkpoint = 3, city = 4, airfield = 5, base = 5, tower = 2, bunker = 2, plant = 3 },
@@ -1554,6 +1642,7 @@ function G.build()
         { "base", buildBase }, { "tower", buildTower }, { "bunker", buildBunker }, { "plant", buildPlant },
         { "bridges", buildBridges }, { "forest", buildForest },
         { "station", function() require("src.world_psx").build(G, rng) end },
+        { "outpost", buildOutpost }, { "notes", buildNotes },
         { "garrisons", buildGarrisons }, { "wilderness", buildWilderness }, { "squads", buildSquads }, { "drifts", buildDrifts },
         { "roads", W.buildRoadMeshes },
     }

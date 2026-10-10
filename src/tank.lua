@@ -23,6 +23,7 @@ function T.init(game)
         radioDial = TI.buildRadioDial(),
         lyingTrack = TM.buildLyingTrack(0.52, 9.5, 43),
     }
+    T.models.compass, T.models.compassNeedle, T.models.note = TM.buildCompass()
     -- rain caps on the exhaust stacks: they flap open with every pulse of the engine
     local MB = require("src.engine.meshbuilder")
     local mb = MB.new(41)
@@ -58,7 +59,7 @@ function T.init(game)
         for _, w in ipairs(TM.wheelLayout(s)) do T.wheels[#T.wheels + 1] = { x = w[1], y = w[2], z = w[3], side = s, mat = {} } end
     end
     T.mats = {}
-    for _, k in ipairs({ "tank", "turret", "gun", "hatch", "mg", "sprL", "sprR", "levL", "levR", "flapL", "flapR" }) do T.mats[k] = {} end
+    for _, k in ipairs({ "tank", "turret", "gun", "hatch", "mg", "sprL", "sprR", "levL", "levR", "flapL", "flapR", "compass" }) do T.mats[k] = {} end
 
     -- collider sets
     local ext = {
@@ -732,6 +733,22 @@ function T.draw(cam)
         R.drawModel(m.breech, gunM, ip)
         R.drawModel(m.mgInt, mgM, ip)
         if m.racks then R.drawModel(m.racks, tankM, ip) end
+        -- the driver's compass: the needle swings to world north as the hull turns
+        R.drawModel(m.compass, tankM, ip)
+        R.drawModel(m.note, tankM, ip)
+        local nx, _, nz = T.frame:dirToLocal(0, 0, -1)
+        local a = math.atan2(nz, nx)
+        local cf = T.compassLocal or M3.frame()
+        T.compassLocal = cf
+        local c, s = math.cos(a), math.sin(a)
+        cf.fx, cf.fy, cf.fz = 1, 0, 0
+        cf.ux, cf.uy, cf.uz = 0, c, s
+        cf.rx, cf.ry, cf.rz = 0, -s, c
+        cf.px, cf.py, cf.pz = TM.COMPASS[1], TM.COMPASS[2], TM.COMPASS[3]
+        local cw = T.compassWorld or M3.frame()
+        T.compassWorld = cw
+        T.frame:compose(cf, cw)
+        R.drawModel(m.compassNeedle, fm(cw, "compass"), ip)
         for i, lv in ipairs({ { "levL", -0.98, T.leverL }, { "levR", -0.52, T.leverR } }) do
             local tf = T.tmpFrame
             tf:setYawPitchRoll(0, -0.25 - lv[3] * 0.5, 0)

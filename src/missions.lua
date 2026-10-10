@@ -23,7 +23,7 @@ function M.reset()
 end
 
 function M.serialize()
-    return { stage = M.stage, discovered = M.discovered, revealed = M.revealed, flags = M.flags }
+    return { stage = M.stage, discovered = M.discovered, revealed = M.revealed, flags = M.flags, finishedHome = M.discovered.outpost }
 end
 
 function M.load(s)
@@ -76,6 +76,11 @@ function M.event(name, data)
     elseif name == "discovered" then
         if data == "tower" then complete("tower") end
         if data == "plant" and M.stage == 5 then complete("plant") end
+        -- home: our outpost in the north
+        if data == "outpost" then
+            M.finished = true
+            if G.game and G.game.homecoming then G.game.homecoming() end
+        end
     end
 end
 

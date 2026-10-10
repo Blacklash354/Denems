@@ -68,6 +68,48 @@ function TM.buildBelt(pts, zIn, zOut, side, seed)
     return mb:build()
 end
 
+-- the driver's compass on the front wall right of the vision slit (dial faces back at him, up on the dial
+-- is the hull's nose) and the note the crew left taped to the instrument panel
+TM.COMPASS = { 2.955, 1.95, -0.2 }
+function TM.buildCompass()
+    local cx, cy, cz = TM.COMPASS[1], TM.COMPASS[2], TM.COMPASS[3]
+    local mb = MB.new(51)
+    mb:material("metal"):color(0.28, 0.27, 0.25)
+    mb:cylinderX(cx, cx + 0.05, cy, cz, 0.085, 0.085, 12)               -- bezel
+    mb:box(cx + 0.02, cy - 0.13, cz - 0.03, cx + 0.05, cy - 0.08, cz + 0.03) -- bracket
+    mb:material("white"):color(0.86, 0.84, 0.76)
+    mb:cylinderX(cx - 0.003, cx, cy, cz, 0.074, 0.074, 14)                 -- card
+    mb:material("metal"):color(0.15, 0.15, 0.15)
+    for i = 0, 7 do                                                        -- ticks round the card
+        local a = i / 8 * 2 * math.pi
+        local y, z = cy + math.cos(a) * 0.06, cz + math.sin(a) * 0.06
+        local s = i == 0 and 0.012 or 0.006
+        mb:box(cx - 0.006, y - s, z - s, cx - 0.003, y + s, z + s)
+    end
+    mb:material("cloth_red"):color(1, 1, 1)
+    mb:box(cx - 0.006, cy + 0.072, cz - 0.01, cx - 0.003, cy + 0.085, cz + 0.01) -- lubber line: the nose
+    local compass = mb:build()
+    -- needle (dial-local: points along +y, turned about +x by the bearing of north)
+    mb = MB.new(52)
+    mb:material("cloth_red"):color(1, 1, 1)
+    mb:hexa({ { -0.012, 0, -0.008 }, { -0.009, 0, -0.008 }, { -0.009, 0, 0.008 }, { -0.012, 0, 0.008 },
+              { -0.012, 0.062, -0.001 }, { -0.009, 0.062, -0.001 }, { -0.009, 0.062, 0.001 }, { -0.012, 0.062, 0.001 } })
+    mb:material("white"):color(0.95, 0.95, 0.92)
+    mb:hexa({ { -0.012, -0.045, -0.001 }, { -0.009, -0.045, -0.001 }, { -0.009, -0.045, 0.001 }, { -0.012, -0.045, 0.001 },
+              { -0.012, 0, -0.008 }, { -0.009, 0, -0.008 }, { -0.009, 0, 0.008 }, { -0.012, 0, 0.008 } })
+    mb:material("metal"):color(0.2, 0.2, 0.2)
+    mb:cylinderX(-0.014, -0.008, 0, 0, 0.01, 0.01, 6)
+    local needle = mb:build()
+    -- a folded sheet taped to the panel's inner face, by the driver's left knee
+    mb = MB.new(53)
+    mb:material("paper"):color(0.92, 0.9, 0.82)
+    mb:quadN(2.62, 1.66, -1.148, 2.9, 1.66, -1.148, 2.9, 1.9, -1.148, 2.62, 1.9, -1.148, 0, 0, 1)
+    mb:material("cloth"):color(0.75, 0.7, 0.55)
+    mb:box(2.72, 1.88, -1.15, 2.8, 1.93, -1.146)
+    local note = mb:build()
+    return compass, needle, note
+end
+
 -- a thrown track: the belt unrolled flat on the ground, links running back from the origin along -x
 function TM.buildLyingTrack(width, length, seed)
     local mb = MB.new(seed or 9)

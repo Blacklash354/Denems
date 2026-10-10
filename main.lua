@@ -110,6 +110,7 @@ function love.load(args)
         if a == "--peopletest" then autotest = require("tools.peopletest") end
         if a == "--tanktest" then autotest = require("tools.tanktest") end
         if a == "--talktest" then autotest = require("tools.talktest") end
+        if a == "--northtest" then autotest = require("tools.northtest") end
     end
     if not autotest and (Settings.data.fullscreen or Settings.data.resolution ~= 1) then Settings.applyWindow() end
     Textures.init()

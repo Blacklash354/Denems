@@ -16,6 +16,7 @@ P.LOOKS = {
     military = { "soldier", "soldier", "soldier_mask", "soldier", "sergeant", "soldier_winter" },
     bandit = { "bandit", "bandit_leather" },
     loner = { "loner", "loner_farmer", "loner_woman", "loner" },
+    german = { "german" },
 }
 
 function P.available(name)

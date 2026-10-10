@@ -19,12 +19,14 @@ H.FACTIONS = {
     loner = { name = "SURVIVOR", hostile = false },
     bandit = { name = "BANDIT", hostile = true },
     military = { name = "SOLDIER", hostile = true },
+    german = { name = "LANDSER", hostile = false },      -- our own, at the outpost in the north
 }
 -- who shoots whom on sight
 H.ENEMIES = {
     loner = { bandit = true, military = true },
-    bandit = { loner = true, military = true },
-    military = { loner = true, bandit = true },
+    bandit = { loner = true, military = true, german = true },
+    military = { loner = true, bandit = true, german = true },
+    german = { military = true, bandit = true },
 }
 local ACTIVE = 380          -- full AI inside this radius around the player
 local RESPAWN = 420         -- seconds before a wiped-out squad is replaced
@@ -70,6 +72,8 @@ H.LINES = {
               "This cabin is warm, the stove still works. Take what you need from the chest, leave something for the next one." },
     nadia = { "We came from the city when the soldiers started shooting looters. Looters... we only wanted bread.",
               "Wool and felt. Find valenki and a sheepskin, or the cold will take your feet first." },
+    brandt = { "Kurt? Kurt Weber? Good God, man - we gave you up for dead with the rest of the company. Sit, sit. There's coffee, nearly.",
+               "Hans made it in a week ago, half frozen. He said you'd bring the tank if anyone could. We hold this place until the thaw, and then we'll see." },
     vasya = { "Every flat in these blocks has a wardrobe. Most are empty. Most.",
               "The airfield? Tanks in rows like sleeping dogs. And soldiers who don't sleep." },
 }
@@ -86,6 +90,8 @@ H.AMBIENT = {
               "Stay warm, friend.", "The cold gets in your bones out there." },
     bandit = { "Hey! Who's there?!", "Get him!", "That's a dead man walking!", "Over there!", "Surround him!", "He's got a tank! Run!" },
     military = { "Halt!", "Contact!", "Open fire!", "Flank him!", "Grenade... no, no grenades left!", "Hold the line!" },
+    german = { "Halt! ...Kurt? Is that you?", "Close the gap in the wire!", "Ivan was probing the wire again last night.",
+               "Keep your head down by the tower.", "Warm your hands, the coffee is almost real." },
 }
 
 H.TRADES = {
@@ -123,7 +129,8 @@ end
 ---------------------------------------------------------------------------
 -- spawn / save
 ---------------------------------------------------------------------------
-local LOOKS = { military = { "military", "military", "military_winter" }, bandit = { "bandit", "bandit2" }, loner = { "loner", "loner2" } }
+local LOOKS = { military = { "military", "military", "military_winter" }, bandit = { "bandit", "bandit2" }, loner = { "loner", "loner2" },
+                german = { "military_winter" } }
 
 function H.init(game)
     G = game
