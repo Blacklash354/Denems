@@ -105,6 +105,7 @@ function love.load(args)
         if a == "--vmtest" then autotest = require("tools.vmtest") end
         if a == "--snowtest" then autotest = require("tools.snowtest") end
         if a == "--treetest" then autotest = require("tools.treetest") end
+        if a == "--peopletest" then autotest = require("tools.peopletest") end
     end
     if not autotest and (Settings.data.fullscreen or Settings.data.resolution ~= 1) then Settings.applyWindow() end
     Textures.init()

@@ -7,6 +7,7 @@ local MB = require("src.engine.meshbuilder")
 local M3 = require("src.engine.math3d")
 local R = require("src.engine.renderer")
 local Rig = require("src.rig")
+local Gltf = require("src.engine.gltf")
 
 local VM = {}
 
@@ -24,9 +25,35 @@ local SLEEVES = {
 }
 local GLOVES = { gloves = { "knit", 0.34, 0.29, 0.24 }, mittens = { "fur", 0.6, 0.46, 0.32 }, none = { "flesh", 0.95, 0.76, 0.64 } }
 
+-- the soldier's own sleeves and gloved hands (assets/people/fp_arms.glb, cut from Quaternius' CC0 figure
+-- by tools/people_convert.py): white, tinted at draw time with what the player wears; fingers curled round
+-- the grip on the right, under the handguard on the left
+local FP_FILE = "assets/people/fp_arms.glb"
+local function loadModelledArms()
+    if not love.filesystem.getInfo(FP_FILE) then return nil end
+    local asset = Gltf.load(FP_FILE)
+    local set = {}
+    for _, part in ipairs({ "upperL", "foreL", "handL", "upperR", "foreR", "handR" }) do
+        if not asset.byName[part] then return nil end
+        local mb = MB.new(1710)
+        mb.jitter = 0
+        Gltf.emitPrims(mb, (Gltf.collect(asset, part)))
+        set[part] = mb:build()
+    end
+    Gltf.release(asset)
+    return set
+end
+
 local function buildArms(torso, hands)
     local sl = SLEEVES[torso] or SLEEVES.none
     local gl = GLOVES[hands] or GLOVES.none
+    if VM.modelled then
+        local M = VM.modelled
+        local coat = { sl[2] * 0.9, sl[3] * 0.9, sl[4] * 0.9, 1 }
+        local glove = { gl[2], gl[3], gl[4], 1 }
+        return { modelled = true, upper = { M.upperL, M.upperR }, fore = { M.foreL, M.foreR }, hand = { M.handL, M.handR },
+                 coat = coat, glove = glove }
+    end
     local COAT, GLOVE = { sl[2], sl[3], sl[4] }, { gl[2], gl[3], gl[4] }
     local cm, gm = sl[1], gl[1]
     local m = {}
@@ -61,6 +88,7 @@ local function buildArms(torso, hands)
     end
     m.handR = hand(1703, false)
     m.handL = hand(1704, true)
+    m.upper, m.fore, m.hand = { m.upper, m.upper }, { m.fore, m.fore }, { m.handL, m.handR }
     return m
 end
 
@@ -72,30 +100,30 @@ local function pose(p, a, b) return { p = p, a = a, b = b } end
 
 VM.RIGS = {
     smg = {   -- AK-74
-        grip = pose({ -0.165, -0.065, 0.0 }, { 0.55, -0.6, -0.25 }, { 0.15, 0.3, 1 }),
-        guard = pose({ 0.14, -0.045, -0.005 }, { 0.35, 0.35, 0.85 }, { 0.1, -0.8, -0.6 }),
+        grip = pose({ -0.175, -0.07, 0.018 }, { 0.75, -0.5, -0.2 }, { 0.15, 0.25, 1 }),
+        guard = pose({ 0.15, -0.085, -0.02 }, { 0.3, 0.2, 0.93 }, { 0.1, -0.95, -0.3 }),
         magTop = { 0.035, -0.02, 0 }, magGrab = pose({ 0.06, -0.12, -0.035 }, { 0.15, 0.3, 1 }, { -0.25, -0.4, -0.85 }),
         charge = pose({ 0.07, 0.045, 0.04 }, { 0.2, -0.4, 1 }, { 0, 1, 0.3 }), chargeTravel = 0.09,
         track = "rifle",
     },
     rifle = { -- M14
         grip = pose({ -0.075, -0.055, 0.0 }, { 0.7, -0.45, -0.25 }, { 0.15, 0.3, 1 }),
-        guard = pose({ 0.27, -0.03, -0.005 }, { 0.35, 0.35, 0.85 }, { 0.1, -0.8, -0.6 }),
+        guard = pose({ 0.27, -0.075, -0.02 }, { 0.3, 0.2, 0.93 }, { 0.1, -0.95, -0.3 }),
         magTop = { 0.11, -0.005, 0 }, magGrab = pose({ 0.12, -0.085, -0.035 }, { 0.15, 0.3, 1 }, { -0.25, -0.4, -0.85 }),
         charge = pose({ 0.16, 0.025, 0.035 }, { 0.2, -0.4, 1 }, { 0, 1, 0.3 }), chargeTravel = 0.08,
         track = "rifle",
     },
     pistol = { -- Makarov
-        -- held in the right hand; the left one rests out of view and only comes up to reload
-        grip = pose({ -0.02, -0.045, 0.0 }, { 0.5, -0.85, -0.2 }, { 0.2, 0.2, 1 }),
-        guard = pose({ -0.2, -0.32, -0.22 }, { 0.6, 0.3, 0.3 }, { -0.2, 0.3, -1 }),
+        -- held in the right hand; the left one hangs out of view and only comes up to reload
+        grip = pose({ -0.035, -0.012, 0.03 }, { 0.85, -0.35, -0.2 }, { 0.15, 0.1, 1 }),
+        guard = pose({ -0.25, -0.55, -0.3 }, { 0.6, 0.3, 0.3 }, { -0.2, 0.3, -1 }), leftIdleHidden = true,
         magTop = { 0.0, 0.03, 0 }, magGrab = pose({ -0.005, -0.03, -0.03 }, { 0.2, 0.2, 1 }, { -0.3, -0.5, -0.8 }),
         charge = pose({ -0.035, 0.05, -0.02 }, { 0.6, 0.0, 0.8 }, { 0, 1, -0.2 }), chargeTravel = 0.03,
         track = "pistol",
     },
     shotgun = {
         grip = pose({ -0.095, -0.05, 0.0 }, { 0.7, -0.45, -0.25 }, { 0.15, 0.3, 1 }),
-        guard = pose({ 0.36, -0.04, -0.005 }, { 0.35, 0.35, 0.85 }, { 0.1, -0.8, -0.6 }),
+        guard = pose({ 0.36, -0.08, -0.02 }, { 0.3, 0.2, 0.93 }, { 0.1, -0.95, -0.3 }),
         port = pose({ 0.07, -0.07, -0.01 }, { 0.6, 0.6, 0.5 }, { -0.2, -0.6, -0.8 }),
         pumpTravel = 0.09,
         track = "shells",
@@ -133,6 +161,7 @@ VM.TRACKS = {
 }
 
 function VM.init()
+    VM.modelled = loadModelledArms()
     VM.armSets = {}
     VM.arms = buildArms("telogreika", "gloves")
     VM.frames = {}
@@ -225,14 +254,20 @@ local function drawArm(cam, shoulder, hf, side, params)
     local ex, ey, ez, tx, ty, tz = Rig.ik(sx, sy, sz, wx, wy, wz, UPPER, FORE, px, py, pz)
     local uf = Rig.segFrame(sx, sy, sz, ex, ey, ez, cam.ux, cam.uy, cam.uz, frame())
     local ff = Rig.segFrame(ex, ey, ez, tx, ty, tz, hf.ux, hf.uy, hf.uz, frame())
-    R.drawModel(A.upper, uf:matrix(mat()), params)
-    R.drawModel(A.fore, ff:matrix(mat()), params)
+    local k = side > 0 and 2 or 1
+    local pc, pg = params, params
+    if A.coat then
+        pc = { interior = params.interior, fog = params.fog, tint = A.coat }
+        pg = { interior = params.interior, fog = params.fog, tint = A.glove }
+    end
+    R.drawModel(A.upper[k], uf:matrix(mat()), pc)
+    R.drawModel(A.fore[k], ff:matrix(mat()), pc)
     -- if the arm could not reach, the hand follows the wrist instead of floating
     local gap = U.dist3(tx, ty, tz, wx, wy, wz)
     if gap > 0.002 then
         hf.px, hf.py, hf.pz = hf.px + tx - wx, hf.py + ty - wy, hf.pz + tz - wz
     end
-    R.drawModel(side > 0 and A.handR or A.handL, hf:matrix(mat()), params)
+    R.drawModel(A.hand[k], hf:matrix(mat()), pg)
 end
 
 -- draws both arms for weapon `name` held in frame wf. st: { reload = 0..1 or nil, empty = bool, pump = 0..1, shellPhase = 0..1 }
@@ -266,6 +301,7 @@ function VM.drawArms(name, wf, st, params)
         local s = st.sample
         ps = blendPose(anchorPose(rig, s.handA, s), anchorPose(rig, s.handB, s), s.handF)
     else
+        if rig.leftIdleHidden then return end
         ps = rig.guard
     end
     local hl = handFrame(wf, ps, frame())

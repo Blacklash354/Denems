@@ -1490,6 +1490,38 @@ local function buildDrifts()
     print(string.format("[gen] %d snow drifts on the roads", #W.drifts))
 end
 
+-- more men under arms: every army post and bandit hideout gets a garrison on open ground around it
+local GARRISONS = {
+    military = { checkpoint = 3, city = 4, airfield = 5, base = 5, tower = 2, bunker = 2, plant = 3 },
+    bandit = { garages = 3, town = 4, industrial = 4, forest = 2 },
+}
+local function buildGarrisons()
+    local n = 0
+    for faction, list in pairs(GARRISONS) do
+        for id, count in pairs(list) do
+            local L = W[id]
+            local placed, tries = 0, 0
+            while placed < count and tries < count * 40 do
+                tries = tries + 1
+                local a = rng:range(0, 6.283)
+                local d = rng:range(0.15, 0.55) * math.min(L.r, 160)
+                local x, z = L.x + math.cos(a) * d, L.z + math.sin(a) * d
+                local gy = W.height(x, z)
+                local free = math.abs(x - W.riverX(z)) > 25
+                for _, b in ipairs(W.colliders:query(x - 1.2, z - 1.2, x + 1.2, z + 1.2, {})) do
+                    if b[5] > gy + 0.4 then free = false break end
+                end
+                if free then
+                    placed = placed + 1
+                    npc(x, z, faction, placed % 2 == 0 and "patrol" or "guard", faction == "military" and "SOLDIER" or "BANDIT", nil, rng:range(0, 6.283))
+                end
+            end
+            n = n + placed
+        end
+    end
+    print(string.format("[gen] %d more soldiers and bandits in garrisons", n))
+end
+
 -- people on the move between places
 local function buildSquads()
     local function loc(id, dx, dz) local l = W[id] return { l.x + (dx or 0), l.z + (dz or 0) } end
@@ -1500,6 +1532,11 @@ local function buildSquads()
     squad("bandit", 3, { loc("garages", 0, -46), { 260, 760 }, { -60, 700 }, loc("town", 30, 0), { -960, 500 }, loc("industrial", 0, 20),
         { -960, 500 }, loc("town", 30, 0), { -60, 700 } }, "BANDIT GANG")
     squad("bandit", 2, { loc("industrial", 0, 20), { -1160, 320 }, { -1350, -100 }, loc("base", 120, 120), { -1350, -100 } }, "BANDIT SCOUTS")
+    squad("military", 4, { loc("base", 60, 40), { -850, -700 }, { -500, -600 }, loc("city", -100, -60), { -500, -600 }, { -850, -700 } }, "ARMY PATROL")
+    squad("military", 3, { loc("airfield", -200, 30), { 960, -390 }, { 700, -350 }, { 300, -250 }, { 700, -350 }, { 960, -390 } }, "ARMY PATROL")
+    squad("bandit", 3, { loc("industrial", 40, 40), { -1160, 320 }, { -960, 500 }, loc("town", 60, 30), { -960, 500 }, { -1160, 320 } }, "BANDIT GANG")
+    squad("bandit", 4, { loc("garages", 30, -60), { 330, 560 }, { 170, 230 }, { -60, -110 }, loc("city", 150, 120), { -60, -110 }, { 170, 230 },
+        { 330, 560 } }, "BANDIT GANG")
     squad("loner", 2, { loc("camp", 10, 0), { -440, 1300 }, loc("kolkhoz", 0, 0), { 30, 1720 }, loc("station", -30, 0), { 150, 935 },
         loc("station", -30, 0), { 30, 1720 }, loc("kolkhoz", 0, 0) }, "SURVIVORS")
     squad("loner", 2, { loc("town", -80, -45), { -400, 620 }, { 260, 760 }, loc("garages", 0, 30), { 760, 760 }, loc("forest", -60, 0),
@@ -1517,7 +1554,7 @@ function G.build()
         { "base", buildBase }, { "tower", buildTower }, { "bunker", buildBunker }, { "plant", buildPlant },
         { "bridges", buildBridges }, { "forest", buildForest },
         { "station", function() require("src.world_psx").build(G, rng) end },
-        { "wilderness", buildWilderness }, { "squads", buildSquads }, { "drifts", buildDrifts },
+        { "garrisons", buildGarrisons }, { "wilderness", buildWilderness }, { "squads", buildSquads }, { "drifts", buildDrifts },
         { "roads", W.buildRoadMeshes },
     }
     for i, s in ipairs(steps) do

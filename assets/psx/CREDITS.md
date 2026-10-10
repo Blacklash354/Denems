@@ -17,6 +17,16 @@ Source repositories: https://github.com/Spyridon-Pikoulas
 Changes made here: the `.glb` files are renamed (`*_model.glb` -> `*.glb`); models are tinted and
 snow is added at load time; the textures are renamed to the game's material names.
 
+## People — CC0 1.0, by Quaternius (https://quaternius.com)
+
+`assets/people/*.glb` are made from **Ultimate Modular Men** and **Ultimate Modular Women** by Quaternius
+(CC0 1.0 Universal, `assets/people/LICENSE.txt`), taken from the copy in
+https://github.com/LuanDucate/Ducz.CharacterCreator (`public/models`, commit fcd215b). `tools/people_convert.py`
+mixes heads, bodies, legs and feet from the outfits (Swat, Worker, Adventurer, Farmer, Casual_Hoodie, Casual_2, Punk,
+female Adventurer and Worker), recolours them (olive drab, winter whites, bandit black, survivor browns), cuts the
+skinned meshes into rigid body parts by bone and drops the animations. `fp_arms.glb` is the Swat figure's arms with
+the fingers posed round a grip, for the first-person view.
+
 ## Shader references
 
 * CRT / VHS screen filters in `shaders/post.glsl` are adapted from **Retro Screen FX Free** by

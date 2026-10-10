@@ -209,8 +209,8 @@ function Rig.segFrame(ax, ay, az, bx, by, bz, hx, hy, hz, out)
 end
 
 -- forearm frame from the elbow to the wrist, with the hand rolled to the given up hint
-function Rig.armFrames(sx, sy, sz, tx, ty, tz, px, py, pz, hux, huy, huz, upperOut, foreOut)
-    local ex, ey, ez, wx, wy, wz = Rig.ik(sx, sy, sz, tx, ty, tz, Rig.UPPER, Rig.FORE, px, py, pz)
+function Rig.armFrames(sx, sy, sz, tx, ty, tz, px, py, pz, hux, huy, huz, upperOut, foreOut, upper, fore)
+    local ex, ey, ez, wx, wy, wz = Rig.ik(sx, sy, sz, tx, ty, tz, upper or Rig.UPPER, fore or Rig.FORE, px, py, pz)
     Rig.segFrame(sx, sy, sz, ex, ey, ez, hux, huy, huz, upperOut)
     Rig.segFrame(ex, ey, ez, wx, wy, wz, hux, huy, huz, foreOut)
     return ex, ey, ez

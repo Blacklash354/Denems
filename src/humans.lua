@@ -10,6 +10,7 @@ local M3 = require("src.engine.math3d")
 local PA = require("src.psx_assets")
 local Rig = require("src.rig")
 local Ch = require("src.characters")
+local People = require("src.people")
 
 local H = { list = {}, noises = {} }
 local G
@@ -131,7 +132,17 @@ function H.init(game)
         bandit = Rig.build("bandit", 630), bandit2 = Rig.build("bandit2", 640),
         loner = Rig.build("loner", 650), loner2 = Rig.build("loner2", 660),
     }
-    -- figures from the character pack (assets/characters_psx.glb) join the procedural outfits
+    -- modelled people (assets/people, Quaternius CC0) replace the procedural outfits where available
+    for faction, list in pairs(People.LOOKS) do
+        local have = {}
+        for _, name in ipairs(list) do
+            local set = People.build(name)
+            if set then H.looks[name] = set have[#have + 1] = name end
+        end
+        if #have > 0 then LOOKS[faction] = have end
+    end
+    -- figures from the character pack (assets/characters_psx.glb): the masked raiders join the bandits
+    -- and the NBC-suited chemical troops guard the power plant
     if Ch.available() then
         Ch.preload()
         for faction, list in pairs(Ch.LOOKS) do
@@ -139,7 +150,7 @@ function H.init(game)
                 local set = Ch.get(name)
                 if set then
                     H.looks[name] = set
-                    if faction ~= "military" then table.insert(LOOKS[faction], name) end
+                    if faction == "bandit" and name:find("Killer") then table.insert(LOOKS[faction], name) end
                 end
             end
         end
@@ -672,12 +683,17 @@ end
 
 H.DRAW_DIST = 170
 
+-- joint layout of the procedural outfits and the character-pack figures; modelled people carry their own
+local RIG_DIMS = { hipY = 0.92, legY = -0.02, torsoY = 0.02, hip = Rig.HIP, knee = { 0, -Rig.THIGH, 0 }, neck = { 0.02, 0.6, 0 },
+                   shoulder = Rig.SHOULDER, upper = Rig.UPPER, fore = Rig.FORE }
+
 function H.draw()
     matIdx, frameIdx = 0, 0
     local cam = R.cam
     for _, h in ipairs(H.list) do
         if math.abs(h.x - cam.x) < H.DRAW_DIST and math.abs(h.z - cam.z) < H.DRAW_DIST and R.visible(h.x, h.y + 1, h.z, 2) then
             local m = H.looks[h.look] or H.looks.loner
+            local dm = m.dims or RIG_DIMS
             local sit = h.state == "sit"
             local dead = h.state == "dead"
             local walk = math.min(1, h.speed / 1.5)
@@ -685,24 +701,26 @@ function H.draw()
             local root = frame()
             local fall = dead and math.min(1.45, h.deathT * 3) or 0
             root:setYawPitchRoll(h.yaw, -fall, 0)
-            local hipH = sit and 0.46 or (0.92 + math.abs(math.sin(ph)) * 0.03 * walk)
-            if dead then hipH = U.lerp(0.92, 0.18, fall / 1.45) end
+            local hipH = sit and dm.hipY * 0.5 or (dm.hipY + math.abs(math.sin(ph)) * 0.03 * walk)
+            if dead then hipH = U.lerp(dm.hipY, 0.18, fall / 1.45) end
             root.px, root.py, root.pz = h.x, h.y + hipH, h.z
             local p = { interior = 0 }
             -- legs
             for side = -1, 1, 2 do
                 local swing = sit and 1.45 or (math.sin(ph + (side > 0 and math.pi or 0)) * 0.55 * walk)
-                local thigh = child(root, 0, -0.02, side * Rig.HIP, 0, swing, 0)
-                R.drawModel(m.pack and (side < 0 and m.thighL or m.thighR) or m.thigh, thigh:matrix(mat()), p)
+                local thigh = child(root, 0, dm.legY or 0, side * dm.hip, 0, swing, 0)
+                local split = m.pack or m.people
+                R.drawModel(split and (side < 0 and m.thighL or m.thighR) or m.thigh, thigh:matrix(mat()), p)
                 local knee = sit and -1.5 or (-math.max(0, math.sin(ph + (side > 0 and math.pi or 0) - 1.2)) * 0.8 * walk)
-                local shin = child(thigh, 0, -Rig.THIGH, 0, 0, knee, 0)
-                R.drawModel(m.pack and (side < 0 and m.shinL or m.shinR) or m.shin, shin:matrix(mat()), p)
+                local k = dm.knee
+                local shin = child(thigh, k[1], k[2], k[3] * side, 0, knee, 0)
+                R.drawModel(split and (side < 0 and m.shinL or m.shinR) or m.shin, shin:matrix(mat()), p)
             end
             -- torso leans into the aim
             local lean = sit and 0.25 or (h.aim * 0.1)
-            local torso = child(root, 0, 0.02, 0, 0, -lean, 0)
+            local torso = child(root, 0, dm.torsoY or 0, 0, 0, -lean, 0)
             R.drawModel(m.torso, torso:matrix(mat()), p)
-            local head = child(torso, 0.02, 0.6, 0, h.lookYaw, sit and -0.2 or h.aimPitch * h.aim * 0.6, 0)
+            local head = child(torso, dm.neck[1], dm.neck[2], 0, h.lookYaw, sit and -0.2 or h.aimPitch * h.aim * 0.6, 0)
             R.drawModel(m.head, head:matrix(mat()), p)
             -- weapon: low ready -> shouldered, resting across the knees when sitting
             local aim = h.aim
@@ -716,7 +734,8 @@ function H.draw()
             if not dead or h.deathT < 30 then R.drawModel(H.gun, gun:matrix(mat()), p) end
             -- arms reach for the grip and the handguard (two-bone IK in world space)
             for side = -1, 1, 2 do
-                local sx, sy, sz = torso:toWorld(Rig.SHOULDER[1], Rig.SHOULDER[2], Rig.SHOULDER[3] * side)
+                local sh = dm.shoulder
+                local sx, sy, sz = torso:toWorld(sh[1], sh[2], sh[3] * side)
                 local hp = side > 0 and GRIP or GUARD
                 local tx, ty, tz
                 if dead and h.deathT > 0.3 then
@@ -736,9 +755,9 @@ function H.draw()
                     -- elbows point down and out
                     local ox, oy, oz = torso:dirToWorld(-0.2, -1, side * 0.7)
                     local uf, ff = frame(), frame()
-                    Rig.armFrames(sx, sy, sz, tx, ty, tz, ox, oy, oz, torso.ux, torso.uy, torso.uz, uf, ff)
-                    R.drawModel(m.upper, uf:matrix(mat()), p)
-                    R.drawModel(m.fore, ff:matrix(mat()), p)
+                    Rig.armFrames(sx, sy, sz, tx, ty, tz, ox, oy, oz, torso.ux, torso.uy, torso.uz, uf, ff, dm.upper, dm.fore)
+                    R.drawModel(m.people and (side < 0 and m.upperL or m.upperR) or m.upper, uf:matrix(mat()), p)
+                    R.drawModel(m.people and (side < 0 and m.foreL or m.foreR) or m.fore, ff:matrix(mat()), p)
                 end
             end
         end

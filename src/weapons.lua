@@ -586,10 +586,24 @@ local function partFrame(base, x, y, z, pitch, yaw, out)
     return base:compose(out, M3.frame())
 end
 
+-- the weapon and arms get their own, narrower field of view (as in most shooters): at the world's wide
+-- angle a gun this close to the eye is bent towards the middle of the screen by perspective
+Wp.VM_FOV = math.rad(52)
+local vmProj, vmViewProj = M3.identity(), M3.identity()
+
 function Wp.drawViewmodel()
     if Wp.holster > 0.95 then return end
     local cam = G.camera
     love.graphics.clear(false, false, true)
+    M3.perspective(math.min(cam.fov, Wp.VM_FOV), R.lowW / R.lowH, 0.01, 20, vmProj)
+    M3.mul(vmProj, R.view, vmViewProj)
+    R.send(R.world, "viewProj", "row", vmViewProj)
+    Wp.drawViewmodelParts()
+    R.send(R.world, "viewProj", "row", R.viewProj)
+end
+
+function Wp.drawViewmodelParts()
+    local cam = G.camera
     local def = Wp.DEFS[Wp.current]
     local m = Wp.models[Wp.current]
     local f = Wp.vmFrame or M3.frame()
