@@ -41,6 +41,7 @@ local function buildAll()
     G.weapons = require("src.weapons")
     G.enemies = require("src.enemy_tank")
     G.humans = require("src.humans")
+    G.snow = require("src.snow")
     G.radar = require("src.radar")
     G.ambience = require("src.ambience")
     G.destruction = require("src.destruction")
@@ -63,6 +64,7 @@ local function buildAll()
     G.weapons.init(G)
     G.enemies.init(G)
     G.humans.init(G)
+    G.snow.init(G)
     G.radar.init(G)
     G.ambience.init(G)
     G.destruction.init(G)
@@ -101,6 +103,7 @@ function love.load(args)
         if a == "--geartest" then autotest = require("tools.geartest") end
         if a == "--tour" then autotest = require("tools.tour") end
         if a == "--vmtest" then autotest = require("tools.vmtest") end
+        if a == "--snowtest" then autotest = require("tools.snowtest") end
     end
     if not autotest and (Settings.data.fullscreen or Settings.data.resolution ~= 1) then Settings.applyWindow() end
     Textures.init()

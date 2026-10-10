@@ -184,7 +184,8 @@ local function prompt()
 end
 
 local function messages()
-    local y = UI.VH - 40
+    -- above the gauge panel while seated in the tank
+    local y = (G.player.mode == "seat") and UI.VH - 88 or UI.VH - 40
     for i = #UI.notes, 1, -1 do
         local n = UI.notes[i]
         local a = U.clamp(n.t, 0, 1) * 0.85

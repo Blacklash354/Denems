@@ -79,11 +79,34 @@ interior counts as shelter from the wind.
 
 ### Roads
 
-Roads are separate meshes that follow smooth centre lines: asphalt or dirt-track textures mapped along the road
-(wheel ruts, a faint centre line), ploughed snow banks at the edges and a flattened corridor so the terrain never
-pokes through. The world shader uses perspective-correct texture coordinates (the old hand-made uv/w interpolation
-broke on big ground triangles reaching behind the camera, which made the snow and roads smear and stretch while
-walking). The optional "RETRO WOBBLE" setting still gives the PSX affine look.
+Roads are separate meshes that follow smooth centre lines: packed snow over asphalt or a snowed-over dirt track,
+a faint centre line, ploughed snow banks at the edges (textured at the same density as the snow around them) and a
+flattened corridor so the terrain never pokes through. Tanks, people, prints and spent brass stand on the road
+surface itself (`W.groundHeight`), not on the terrain sunk underneath it. The world shader uses perspective-correct
+texture coordinates (the old hand-made uv/w interpolation broke on big ground triangles reaching behind the camera,
+which made the snow and roads smear and stretch while walking). The optional "RETRO WOBBLE" setting still gives the
+PSX affine look to everything but the ground: terrain, roads and prints are always drawn without it, so the roads
+never swim under you.
+
+The roads carry no painted ruts. The marks on them are the ones that are really made: every tank lays a cleated
+print per track link (grey pressed slush on a road, a blue-shadowed trench in deep snow) and people leave boot
+prints. Falling snow fills them in - in a few minutes when it is calm, much faster in a blizzard - until they are
+gone.
+
+### Deep snow and drifts
+
+Snow lies knee deep in the open and packed thin on the roads. In deep snow the tank sinks into it, slows down and
+throws snow up off its tracks; on foot you sink in and wade. Wind has piled drifts across the roads: the tank has
+to plough through them - it bucks, slows and throws a wave of snow, and what it shoves aside stays as a low heap.
+Fresh snowfall slowly builds the drifts back up.
+
+Snow builds up on the tank too: packed into the running gear and plastered on the bow when you plough through deep
+snow, and settling on the decks and turret roof while it stands still in a snowfall. The engine's heat melts it
+again - the engine deck first, in clouds of steam, the turret roof last - and a cold tank keeps its snow for hours.
+
+The exhausts have rain caps that flutter with the engine. A cold diesel coughs black smoke and sparks while the
+starter turns it over; running, it breathes a thin blue-grey haze plus white vapour in the frozen air (thicker
+while the engine is still cold), and only puts out a black plume when it really labours.
 
 ## People
 
@@ -189,7 +212,8 @@ src/interaction.lua    reusable interactable components ([E] prompts, hold-to-us
 src/weapons.lua        shells, hitscan, explosions, personal firearms and viewmodel
 src/viewmodel.lua      first-person arms, grip poses and keyframed reload tracks
 src/enemy_tank.lua     rare Soviet-inspired enemy tanks
-src/effects.lua        particles, flashes, tracers, casings, footprints and track marks
+src/effects.lua        particles, flashes, tracers, casings, footprints and track marks (filled in by snowfall)
+src/snow.lua           snow depth, drifts across the roads, snow on the tank, engine heat and steam
 src/audio.lua          procedural sound synthesis, 3D audio, interior muffling, ambience, music
 src/environment.lua    time of day and lighting; src/weather.lua blizzards and snowfall
 src/survival.lua       health, stamina, body temperature (clothing insulation), radiation
@@ -199,6 +223,7 @@ tools/drivetest.lua    autopilot (love . --drivetest): drives the tank up the hi
 tools/geartest.lua     running gear check (love . --geartest): tracks and all wheels turn, sides split in a turn
 tools/tour.lua         world tour (love . --tour): every place, roads, people, the map and a panel block inside
 tools/vmtest.lua       first-person weapons (love . --vmtest): every gun at the hip, aimed and through its reload
+tools/snowtest.lua     snow (love . --snowtest): ploughs a drift, leaves prints, runs in deep snow, melts, snows over
 ```
 
 Saves and settings are JSON files in the LÖVE save directory (`steel_hearth`).
@@ -215,6 +240,9 @@ love . --autotest     # scripted playtest: tank interior, ladder + hatch, drivin
 love . --drivetest    # autopilot drives the tank 1.2 km up the highway (logs time, fuel, hull)
 love . --tour         # screenshots of every place, the roads, the people and a panel block from outside and inside
 love . --vmtest       # screenshots of each gun at the hip, aimed and at six moments of its reload
+love . --snowtest     # chase-camera screenshots of the tank ploughing a drift, its prints on the road and in deep
+                      # snow, the snow on it melting off a hot engine and the prints snowing over (logs the numbers);
+                      # STEEL_WOBBLE=1 runs it with the retro wobble on
 ```
 
 They also run headless, e.g. `SDL_AUDIODRIVER=dummy xvfb-run -a love . --autotest`.

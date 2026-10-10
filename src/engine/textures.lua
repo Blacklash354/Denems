@@ -88,43 +88,56 @@ function T.init()
         end
         return cr, cg, cb
     end)
-    -- road surface: u runs across the road (edge to edge), v along it. Packed snow over asphalt,
-    -- dark wheel ruts in each lane, a faint dashed centre line and snowy shoulders
+    -- road surface: u runs across the road (edge to edge), v along it. Packed snow over asphalt, a
+    -- faint dashed centre line and snowy shoulders. No baked ruts or stains: the tracks on the roads
+    -- are the ones vehicles actually leave (effects.lua decals).
     make("road", 64, function(x, y, s, r)
         local u = (x + 0.5) / s
         local n = tfbm(x, y, s, 4, 3, 81)
         local fine = tfbm(x, y, s, 16, 2, 82)
-        local v = 0.6 + n * 0.14 + fine * 0.08
-        local cr, cg, cb = v * 0.94, v * 0.94, v * 0.96
-        local function rut(c, w) return math.max(0, 1 - math.abs(u - c) / w) end
-        local ruts = math.max(rut(0.21, 0.07), rut(0.37, 0.07), rut(0.63, 0.07), rut(0.79, 0.07))
-        local wet = ruts * (0.55 + n * 0.5)
-        if wet > 0.35 then
-            local k = 0.24 + fine * 0.1 + (r:next() > 0.92 and 0.05 or 0)
-            cr, cg, cb = U.lerp(cr, k, wet), U.lerp(cg, k * 0.98, wet), U.lerp(cb, k * 0.97, wet)
-        end
-        if math.abs(u - 0.5) < 0.018 and (y % 32) < 18 and n > 0.35 then cr, cg, cb = cr * 0.75 + 0.2, cg * 0.75 + 0.2, cb * 0.7 + 0.12 end
+        local v = 0.7 + n * 0.12 + fine * 0.06
+        local cr, cg, cb = v * 0.95, v * 0.955, v * 0.975
+        if math.abs(u - 0.5) < 0.018 and (y % 32) < 16 and n > 0.4 then cr, cg, cb = cr * 0.85 + 0.12, cg * 0.85 + 0.12, cb * 0.8 + 0.08 end
         local edge = math.min(u, 1 - u)
-        if edge < 0.07 then
-            local k = 1 - edge / 0.07
-            cr, cg, cb = U.lerp(cr, 0.84 + fine * 0.08, k), U.lerp(cg, 0.86 + fine * 0.08, k), U.lerp(cb, 0.9 + fine * 0.08, k)
+        if edge < 0.08 then
+            local k = 1 - edge / 0.08
+            cr, cg, cb = U.lerp(cr, 0.86 + fine * 0.08, k), U.lerp(cg, 0.88 + fine * 0.08, k), U.lerp(cb, 0.92 + fine * 0.07, k)
         end
+        if r:next() > 0.985 then cr, cg, cb = cr + 0.08, cg + 0.08, cb + 0.09 end
         return cr, cg, cb
     end)
-    -- dirt track: two frozen ruts with a snowy hump between them
+    -- dirt track: frozen, snow-covered earth; just a hint of earth where the snow is thin
     make("track", 64, function(x, y, s, r)
         local u = (x + 0.5) / s
         local n = tfbm(x, y, s, 4, 3, 83)
         local fine = tfbm(x, y, s, 16, 2, 84)
-        local function rut(c, w) return math.max(0, 1 - math.abs(u - c) / w) end
-        local k = math.max(rut(0.28, 0.12), rut(0.72, 0.12)) * (0.6 + n * 0.6)
         local v = 0.78 + n * 0.12 + fine * 0.06
         local cr, cg, cb = v * 0.97, v * 0.98, v
-        if k > 0.3 then
-            local d = 0.3 + fine * 0.12
-            cr, cg, cb = U.lerp(cr, d * 1.1, k), U.lerp(cg, d * 0.98, k), U.lerp(cb, d * 0.85, k)
+        local thin = tfbm(x, y, s, 4, 2, 79)
+        if thin > 0.7 then
+            local k = U.clamp((thin - 0.7) * 3, 0, 0.18)
+            cr, cg, cb = U.lerp(cr, 0.6, k), U.lerp(cg, 0.57, k), U.lerp(cb, 0.54, k)
         end
+        local edge = math.min(u, 1 - u)
+        if edge < 0.1 then cr, cg, cb = cr + (0.1 - edge) * 0.8, cg + (0.1 - edge) * 0.8, cb + (0.1 - edge) * 0.8 end
         return cr, cg, cb
+    end)
+    -- print of a track (cleats across, u = across the belt, v = along) and of a boot sole
+    make("trackprint", 32, function(x, y, s, r)
+        local cleat = (y % 8) < 3
+        local edge = x < 2 or x > s - 3
+        local v = cleat and 0.62 or 0.92
+        if edge then v = 0.8 end
+        v = v + (r:next() - 0.5) * 0.06
+        return v, v, v * 1.02
+    end)
+    -- snow lying on the tank: white with an alpha mask, revealed bit by bit (alpha cut = 1 - cover)
+    make("snowmask", 32, function(x, y, s, r)
+        local n = tfbm(x, y, s, 4, 3, 93)
+        local fine = tnoise(x, y, s, 16, 94)
+        local a = U.clamp(n * 0.85 + fine * 0.25 - 0.05, 0.02, 0.99)
+        local v = 0.9 + fine * 0.08
+        return v * 0.96, v * 0.98, v, a
     end)
     -- Soviet prefab facade: large panels with dark seams and rust/water streaks
     make("panel", 64, function(x, y, s, r)

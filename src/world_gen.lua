@@ -1461,6 +1461,29 @@ local function buildWilderness()
     print(string.format("[gen] wilderness: %d trees", placed))
 end
 
+-- snow drifts blown across the roads between the places: the tank has to plough through them
+local function buildDrifts()
+    W.drifts = {}
+    for _, path in ipairs(W.roadPaths) do
+        local road = path.road
+        local nextD = rng:range(80, 200)
+        for i, p in ipairs(path) do
+            if p.d >= nextD then
+                nextD = p.d + rng:range(110, 260)
+                local nearBridge = false
+                for _, b in ipairs(W.bridges) do if U.dist2(p.x, p.z, b.x, b.z) < 45 then nearBridge = true end end
+                if not nearLocation(p.x, p.z, 0.8) and not nearBridge and U.dist2(p.x, p.z, W.START.x, W.START.z) > 140 then
+                    local off = rng:range(-0.3, 0.3) * road.half
+                    local x, z = p.x - p.tz * off, p.z + p.tx * off
+                    W.drifts[#W.drifts + 1] = { x = x, z = z, y = p.h + road.lift - 0.06, yaw = math.atan2(p.tz, p.tx),
+                        w = rng:range(3.2, 6.0), l = rng:range(1.4, 2.3) * road.half, h0 = rng:range(0.6, 1.25), h = 1 }
+                end
+            end
+        end
+    end
+    print(string.format("[gen] %d snow drifts on the roads", #W.drifts))
+end
+
 -- people on the move between places
 local function buildSquads()
     local function loc(id, dx, dz) local l = W[id] return { l.x + (dx or 0), l.z + (dz or 0) } end
@@ -1488,7 +1511,7 @@ function G.build()
         { "base", buildBase }, { "tower", buildTower }, { "bunker", buildBunker }, { "plant", buildPlant },
         { "bridges", buildBridges }, { "forest", buildForest },
         { "station", function() require("src.world_psx").build(G, rng) end },
-        { "wilderness", buildWilderness }, { "squads", buildSquads },
+        { "wilderness", buildWilderness }, { "squads", buildSquads }, { "drifts", buildDrifts },
         { "roads", W.buildRoadMeshes },
     }
     for i, s in ipairs(steps) do

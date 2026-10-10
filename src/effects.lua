@@ -14,7 +14,7 @@ local lg = love.graphics
 ffi.cdef [[ typedef struct { float x, y, z, u, v; unsigned char r, g, b, a; } bb_vertex; ]]
 local BB_FORMAT = { { "VertexPosition", "float", 3 }, { "VertexTexCoord", "float", 2 }, { "VertexColor", "byte", 4 } }
 local MAXP = 1600
-local MAXDECAL = 1400
+local MAXDECAL = 2400
 
 function E.init(game)
     G = game
@@ -31,8 +31,10 @@ function E.init(game)
     E.decalData = love.data.newByteData(MAXDECAL * 6 * ffi.sizeof("psx_vertex"))
     E.decalPtr = ffi.cast("psx_vertex*", E.decalData:getFFIPointer())
     E.decalMesh = lg.newMesh(MB.FORMAT, MAXDECAL * 6, "triangles", "dynamic")
-    E.decalMesh:setTexture(Textures.get("white"))
+    E.decalMesh:setTexture(Textures.get("trackprint"))
     E.decalCount, E.decalNext, E.decalDirty = 0, 0, false
+    E.decalInfo = {}          -- per decal: base colour and how far the snow has filled it in
+    E.fillT = 0
     E.decalModel = { parts = { { mesh = E.decalMesh } }, tris = 0 }
     -- blob shadows (rebuilt every frame)
     E.MAXSHADOW = 64
@@ -57,6 +59,8 @@ end
 function E.clear()
     E.parts, E.flashes, E.casings, E.debrisList = {}, {}, {}, {}
     E.decalCount, E.decalNext, E.decalDirty = 0, 0, true
+    E.decalInfo = {}
+    for i = 0, MAXDECAL * 6 - 1 do E.decalPtr[i].a = 0 end
 end
 
 local function spawn(x, y, z, vx, vy, vz, life, size, grow, r, g, b, a, add, drag, grav)
@@ -259,7 +263,7 @@ local function updateCasings(dt)
                 floor = 0.64
                 c.z = U.clamp(c.z, -1.3, 1.3)
                 c.x = U.clamp(c.x, -1.6, 2.95)
-            else floor = G.world.height(c.x, c.z) + 0.02 end
+            else floor = G.world.groundHeight(c.x, c.z) + 0.02 end
             if c.y < floor then
                 c.y = floor
                 if c.vy < -1 and c.bounced < 3 then
@@ -277,43 +281,78 @@ end
 ---------------------------------------------------------------------------
 -- decals
 ---------------------------------------------------------------------------
-local function addDecal(x, z, yaw, w, l, r, g, b, a)
+-- a flat quad on the ground (roads included). fill: 0 = fresh; falling snow raises it to 1 and the
+-- print fades into the snow (see fillDecals). permanent decals (scorches) never fill.
+local function addDecal(x, z, yaw, w, l, r, g, b, a, permanent)
     local W = G.world
     local c, s = math.cos(yaw), math.sin(yaw)
     local hw, hl = w / 2, l / 2
     local pts = {}
     for k, o in ipairs({ { -hl, -hw }, { hl, -hw }, { hl, hw }, { -hl, hw } }) do
         local px, pz = x + c * o[1] - s * o[2], z + s * o[1] + c * o[2]
-        pts[k] = { px, W.height(px, pz) + 0.05, pz }
+        pts[k] = { px, W.groundHeight(px, pz) + 0.025, pz }
     end
     local idx = E.decalNext
     E.decalNext = (E.decalNext + 1) % MAXDECAL
     E.decalCount = math.min(MAXDECAL, E.decalCount + 1)
+    E.decalInfo[idx] = { r = r, g = g, b = b, a = a, fill = 0, permanent = permanent }
     local base = idx * 6
     local order = { 1, 3, 2, 1, 4, 3 }
-    local uv = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } }
+    local uv = { { 0, 0 }, { 0, 1 }, { 1, 1 }, { 1, 0 } }
     for i = 1, 6 do
         local p = pts[order[i]]
         local v = E.decalPtr[base + i - 1]
         v.x, v.y, v.z = p[1], p[2], p[3]
-        v.u, v.v = uv[order[i]][1], uv[order[i]][2]
+        v.u, v.v = uv[order[i]][1], uv[order[i]][2] * l / 0.85
         v.nx, v.ny, v.nz = 0, 1, 0
         v.r, v.g, v.b, v.a = r * 255, g * 255, b * 255, a * 255
     end
     E.decalDirty = true
 end
 
-function E.footprint(x, z, yaw)
-    if G.world.isRiver(x, z) then return end
-    addDecal(x, z, yaw, 0.14, 0.3, 0.55, 0.58, 0.66, 0.55)
+-- snow slowly fills the prints: slowly in calm weather, within a minute or so in a blizzard
+local SNOWR, SNOWG, SNOWB = 0.92, 0.94, 0.98
+local function fillDecals(step)
+    local w = G.weather and G.weather.intensity or 0.3
+    local rate = (1 / 420 + w * w / 50) * step
+    local any = false
+    for idx, d in pairs(E.decalInfo) do
+        if not d.permanent and d.fill < 1 then
+            d.fill = math.min(1, d.fill + rate)
+            local f = d.fill
+            local r, g, b = U.lerp(d.r, SNOWR, f), U.lerp(d.g, SNOWG, f), U.lerp(d.b, SNOWB, f)
+            local a = d.a * (1 - f * f)
+            local base = idx * 6
+            for i = 0, 5 do
+                local v = E.decalPtr[base + i]
+                v.r, v.g, v.b, v.a = r * 255, g * 255, b * 255, a * 255
+            end
+            any = true
+            if f >= 1 then E.decalInfo[idx] = nil end
+        end
+    end
+    if any then E.decalDirty = true end
 end
 
-function E.trackMark(x, z, yaw)
-    addDecal(x, z, yaw, 0.58, 0.85, 0.45, 0.47, 0.52, 0.6)
+function E.footprint(x, z, yaw)
+    if G.world.isRiver(x, z) then return end
+    local _, onRoad = G.world.groundHeight(x, z)
+    if onRoad then addDecal(x, z, yaw, 0.14, 0.3, 0.5, 0.5, 0.52, 0.6)
+    else addDecal(x, z, yaw, 0.15, 0.32, 0.55, 0.6, 0.72, 0.6) end
+end
+
+-- one link-width print per track; darker on roads (pressed slush), a blue-shadowed trench in deep snow
+function E.trackMark(x, z, yaw, depth)
+    local _, onRoad = G.world.groundHeight(x, z)
+    if onRoad then addDecal(x, z, yaw, 0.56, 0.85, 0.46, 0.46, 0.5, 0.78)
+    else
+        local k = U.clamp((depth or 0.3) / 0.45, 0.3, 1)
+        addDecal(x, z, yaw, 0.6, 0.85, U.lerp(0.75, 0.5, k), U.lerp(0.78, 0.56, k), U.lerp(0.86, 0.7, k), 0.8)
+    end
 end
 
 function E.scorch(x, z, r)
-    addDecal(x, z, rnd() * 6, r * 2, r * 2, 0.12, 0.11, 0.1, 0.8)
+    addDecal(x, z, rnd() * 6, r * 2, r * 2, 0.12, 0.11, 0.1, 0.8, true)
 end
 
 ---------------------------------------------------------------------------
@@ -321,6 +360,8 @@ end
 ---------------------------------------------------------------------------
 function E.update(dt)
     E.time = E.time + dt
+    E.fillT = E.fillT + dt
+    if E.fillT > 0.25 then fillDecals(E.fillT) E.fillT = 0 end
     local parts = E.parts
     local n = #parts
     local i = 1
@@ -420,7 +461,7 @@ function E.drawDecals()
     E.decalMesh:setDrawRange(1, E.decalCount * 6)
     lg.setDepthMode("lequal", false)
     E.decalModel.tris = E.decalCount * 2
-    R.drawModel(E.decalModel, nil, { fog = { R.env.fogStart, R.env.fogEnd, 1 } })
+    R.drawModel(E.decalModel, nil, { fog = { R.env.fogStart, R.env.fogEnd, 1 }, flat = true })
     lg.setDepthMode("lequal", true)
 end
 
@@ -437,7 +478,7 @@ function E.drawShadows(list)
         local pts = {}
         for k, o in ipairs({ { -s.l, -s.w }, { s.l, -s.w }, { s.l, s.w }, { -s.l, s.w } }) do
             local px, pz = s.x + c * o[1] - sn * o[2], s.z + sn * o[1] + c * o[2]
-            local py = s.y or W.height(px, pz)
+            local py = s.y or W.groundHeight(px, pz)
             pts[k] = { px, py + 0.07, pz }
         end
         for i = 1, 6 do

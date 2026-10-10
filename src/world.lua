@@ -146,6 +146,7 @@ local function buildRoadPaths()
             p.h = sum / wsum
         end
         path.length = dist
+        road.lift = 0.03 + ri * 0.004      -- road surface above its profile (separate roads never z-fight)
         W.roadPaths[ri] = path
     end
     -- segment grid
@@ -234,6 +235,8 @@ function W.computeHeight(x, z)
     if road then
         local br = rw > 0.2 and nearBridge(x, z, 70)
         if not (br and br.broken) then
+            -- well under the road surface so the coarse terrain triangles never show through it; wheels,
+            -- feet and decals stand on the road itself (W.groundHeight)
             local w = U.smoothstep(30, 11.5, d)
             if w > 0 then h = U.lerp(h, rh - 0.22, w) end
         end
@@ -285,10 +288,21 @@ end
 
 function W.isRiver(x, z) return abs(x - W.riverX(z)) < 14 and W.height(x, z) < baseHeight(W.riverX(z), z) - 3.5 end
 
+-- ground height including the road surface (terrain sits a few cm below the road meshes)
+function W.groundHeight(x, z)
+    local h = W.height(x, z)
+    local d, rh, road = roadInfo(x, z)
+    if road and d < 0.3 then
+        local r = rh + road.lift
+        if r > h then h = r end
+    end
+    return h, road and d < 0.3
+end
+
 -- surface height including walkable static boxes (for vehicles/creatures)
 local gtmp = {}
 function W.surfaceHeight(x, z, fromY, radius)
-    local h = W.height(x, z)
+    local h = W.groundHeight(x, z)
     radius = radius or 0.3
     local list, n = W.colliders:query(x - radius, z - radius, x + radius, z + radius, gtmp)
     for i = 1, n do
@@ -342,7 +356,7 @@ function W.initChunks()
     W.chunks = {}
     for ci = 0, NCH - 1 do
         for cj = 0, NCH - 1 do
-            local c = { ci = ci, cj = cj, mb = MB.new(ci * 131 + cj * 7 + 1), inst = {} }
+            local c = { ci = ci, cj = cj, mb = MB.new(ci * 131 + cj * 7 + 1), rmb = MB.new(ci * 131 + cj * 7 + 5), inst = {} }
             c.mb.texScale = 0.5
             W.chunks[ci * NCH + cj] = c
         end
@@ -675,14 +689,14 @@ function W.buildRoadMeshes()
     for ri, path in ipairs(W.roadPaths) do
         local road = path.road
         local half = road.half
-        local lift = 0.05 + ri * 0.006
+        local lift = road.lift
         local repeatLen = road.mat == "track" and 6 or 8
         for i = 1, #path - 1 do
             local a, b = path[i], path[i + 1]
             local mx, mz = (a.x + b.x) / 2, (a.z + b.z) / 2
             local bridge = nearBridge(mx, mz, 30)
             if not (bridge and bridge.broken and U.dist2(mx, mz, bridge.x, bridge.z) < 18) then
-                local mb = W.chunkAt(mx, mz).mb
+                local mb = W.chunkAt(mx, mz).rmb
                 mb:reset()
                 mb.jitter = 0.02
                 local anx, anz = -a.tz, a.tx
@@ -705,8 +719,10 @@ function W.buildRoadMeshes()
                         local t1x, t1y, t1z = P(b, bnx, bnz, half + 0.5, 0.22)
                         local o0x, o0y, o0z = P(a, anx, anz, half + 1.4, -0.3)
                         local o1x, o1y, o1z = P(b, bnx, bnz, half + 1.4, -0.3)
-                        upQuad(mb, e0x, e0y, e0z, 0, va, t0x, t0y, t0z, 0.25, va, t1x, t1y, t1z, 0.25, vb, e1x, e1y, e1z, 0, vb)
-                        upQuad(mb, t0x, t0y, t0z, 0.25, va, o0x, o0y, o0z, 0.6, va, o1x, o1y, o1z, 0.6, vb, t1x, t1y, t1z, 0.25, vb)
+                        -- same texel density as the terrain snow: 0.25 repeats per metre both ways
+                        local sa, sb = a.d * 0.25, b.d * 0.25
+                        upQuad(mb, e0x, e0y, e0z, 0, sa, t0x, t0y, t0z, 0.125, sa, t1x, t1y, t1z, 0.125, sb, e1x, e1y, e1z, 0, sb)
+                        upQuad(mb, t0x, t0y, t0z, 0.125, sa, o0x, o0y, o0z, 0.35, sa, o1x, o1y, o1z, 0.35, sb, t1x, t1y, t1z, 0.125, sb)
                     end
                 end
                 mb.jitter = 0.06
@@ -720,6 +736,9 @@ function W.finalize()
     for k, c in pairs(W.chunks) do
         c.model = c.mb:build()
         c.mb = nil
+        -- roads in a model of their own, drawn like the terrain (see W.draw)
+        c.roads = c.rmb:build()
+        c.rmb = nil
         c.cx, c.cy, c.cz = c.model.cx, c.model.cy, c.model.cz
         c.radius = c.model.radius
     end
@@ -765,6 +784,9 @@ end
 ---------------------------------------------------------------------------
 local ident = M3.identity()
 local landmarkFog = { 120, 1300, 0.88 }
+-- the ground (terrain, roads) never takes the retro affine texture wobble: on big ground triangles
+-- it made the roads swim and stretch as you moved
+local FLAT = { flat = true }
 local silFog = { 400, 3200, 0.82 }
 function W.draw(underground)
     if not underground then
@@ -774,7 +796,8 @@ function W.draw(underground)
         for _, c in pairs(chunks) do
             local t = c.terrain
             if R.visible(t.cx, t.cy, t.cz, t.radius) then
-                R.drawModel(t, ident)
+                R.drawModel(t, ident, FLAT)
+                if c.roads.radius > 0 then R.drawModel(c.roads, ident, FLAT) end
                 if c.model.radius > 0 and R.visible(c.cx, c.cy, c.cz, c.radius) then R.drawModel(c.model, ident) end
                 if c.dmodel and R.visible(c.dcx, c.dcy, c.dcz, c.dradius) then R.drawModel(c.dmodel, ident) end
                 for _, d in ipairs(c.instDraw) do R.drawInstanced(d.model, d.mesh, d.count) end

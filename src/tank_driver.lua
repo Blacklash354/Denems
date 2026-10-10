@@ -85,7 +85,7 @@ local function chaseCamera(dt)
     local tx, ty, tz = T.x, T.y + 2.4, T.z
     local dx, dz = -math.cos(yaw) * math.cos(pitch), -math.sin(yaw) * math.cos(pitch)
     local px, py, pz = tx + dx * dist, ty + math.sin(pitch) * dist, tz + dz * dist
-    local gy = G.world.height(px, pz) + 0.8
+    local gy = G.world.groundHeight(px, pz) + 0.8
     if py < gy then py = gy end
     if not D.camX then
         D.camX, D.camY, D.camZ = px, py, pz

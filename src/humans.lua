@@ -153,7 +153,7 @@ local function newHuman(i, d)
     local W = G.world
     local looks = LOOKS[d.faction] or LOOKS.loner
     local h = { id = i, def = d, name = d.name or H.FACTIONS[d.faction].name, faction = d.faction, role = d.role, key = d.key,
-                x = d.x, z = d.z, y = d.y or W.height(d.x, d.z), yaw = d.yaw or 0, homeX = d.x, homeZ = d.z, homeYaw = d.yaw or 0,
+                x = d.x, z = d.z, y = d.y or W.groundHeight(d.x, d.z), yaw = d.yaw or 0, homeX = d.x, homeZ = d.z, homeYaw = d.yaw or 0,
                 hp = d.faction == "loner" and 110 or 95, state = d.role == "sit" and "sit" or "idle", timer = math.random() * 4,
                 phase = math.random() * 6, speed = 0, cool = 1 + math.random() * 2, burst = 0, aim = 0, lookYaw = 0, aimPitch = 0,
                 hostile = H.FACTIONS[d.faction].hostile, talked = false, looted = false, deathT = 0, sayT = 5 + math.random() * 20,
@@ -192,7 +192,7 @@ function H.reset(saved)
             if s then
                 h.hp = s.hp or h.hp
                 h.talked, h.looted, h.hostile = s.talked, s.looted, s.hostile
-                if s.x then h.x, h.z = s.x, s.z h.y = h.fixedY and h.y or W.height(h.x, h.z) end
+                if s.x then h.x, h.z = s.x, s.z h.y = h.fixedY and h.y or W.groundHeight(h.x, h.z) end
                 if s.dead then h.state = "dead" h.deathT = 99 end
             end
         end
@@ -238,7 +238,7 @@ end
 
 local function groundY(h, x, z)
     local W = G.world
-    local t = W.height(x, z)
+    local t = W.groundHeight(x, z)
     local g = P.groundHeight({ W.staticSet }, x, h.y + 0.5, z, 0.3, 0.6)
     return math.max(t, g)
 end
@@ -365,7 +365,7 @@ local function updateSquad(sq, dt, px, pz)
                 m.hostile = H.FACTIONS[m.faction].hostile
                 m.loot = lootFor(m.faction)
                 m.x, m.z = r[1] + math.cos(k) * 2, r[2] + math.sin(k) * 2
-                m.y = G.world.height(m.x, m.z)
+                m.y = G.world.groundHeight(m.x, m.z)
             end
         end
         return
@@ -539,7 +539,7 @@ function H.update(dt)
         else
             local d = U.dist2(px, pz, h.x, h.z)
             if d < ACTIVE then
-                if h.offline then h.offline = false h.y = G.world.height(h.x, h.z) end
+                if h.offline then h.offline = false h.y = G.world.groundHeight(h.x, h.z) end
                 updateFighter(h, dt)
             end
         end

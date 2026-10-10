@@ -149,13 +149,13 @@ function R.beginFrame()
     send(sh, "interiorAmbient", e.interiorAmbient)
     send(sh, "fogColor", e.fogColor)
     -- retro wobble (vertex snapping + affine UVs) is optional; default is stable textures
+    R.affineAmt = R.wobble and 0.35 or 0
     if R.wobble then
         send(sh, "snapRes", { R.lowW * 0.5, R.lowH * 0.5 })
-        send(sh, "affine", 0.35)
     else
         send(sh, "snapRes", { 8192, 8192 })
-        send(sh, "affine", 0.0)
     end
+    sendCached(sh, "affine", R.affineAmt)
     send(sh, "flipY", -1)
     send(sh, "mist", { e.mist[1], e.mist[2], e.mist[3], R.time })
     send(sh, "spotPos", R.spot)
@@ -202,10 +202,14 @@ function R.defaults()
     cur.tint, cur.uv, cur.fog, cur.amb = false, false, false, false
 end
 
--- params: interior(0/1), emissive, tint{r,g,b,a}, uvOffset{u,v}, fog {start,end,max}
+-- flat: no affine texture wobble for this draw (the ground)
+function R.setAffine(flat) sendCached(R.world, "affine", flat and 0 or (R.affineAmt or 0)) end
+
+-- params: interior(0/1), emissive, tint{r,g,b,a}, uvOffset{u,v}, fog {start,end,max}, flat
 function R.drawModel(model, matrix, params)
     if not model then return end
     local sh = R.world
+    R.setAffine(params and params.flat)
     send(sh, "model", "row", matrix or identity)
     if params then
         sendCached(sh, "uInterior", params.interior or 0)
@@ -250,6 +254,7 @@ end
 -- many copies of a small model (trees, rocks): per-instance position/yaw/scale from instMesh
 function R.drawInstanced(model, instMesh, count)
     local sh = R.world
+    R.setAffine(false)
     sendCached(sh, "uInstanced", 1)
     sendCached(sh, "uInterior", 0)
     sendCached(sh, "uEmissive", 0)

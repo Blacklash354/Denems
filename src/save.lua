@@ -27,6 +27,7 @@ function S.save()
         weather = G.weather.serialize(),
         enemies = G.enemies.serialize(),
         humans = G.humans.serialize(),
+        snow = G.snow.serialize(),
         containers = searched,
         pickups = taken,
         doors = doors,
@@ -59,6 +60,7 @@ function S.apply(data)
     G.weather.load(data.weather)
     G.enemies.reset(data.enemies)
     G.humans.reset(data.humans)
+    G.snow.reset(data.snow)
     local taken = {}
     for _, id in ipairs(data.pickups or {}) do taken[id] = true end
     for _, p in ipairs(W.pickups) do p.taken = taken[p.id] or false end

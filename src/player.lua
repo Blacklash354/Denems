@@ -174,7 +174,7 @@ local function updateLadder(dt)
             placeWalking("tank", x, y, z, Pl.yaw - T.turretYaw * 0)
         else
             local x, y, z = T.frame:toWorld(-4.9, 0, -1.2)
-            placeWalking("world", x, G.world.height(x, z), z, T.yaw + math.pi)
+            placeWalking("world", x, G.world.groundHeight(x, z), z, T.yaw + math.pi)
         end
         return
     end
@@ -306,8 +306,13 @@ function Pl.updateWalk(dt)
         Pl.sprinting = true
         Pl.stamina = math.max(0, Pl.stamina - dt * 12)
     end
-    -- deep snow off the roads is slow going
-    if Pl.frameName == "world" and not Pl.groundBox and W.roadDistance(Pl.x, Pl.z) > 6 then speed = speed * 0.86 end
+    -- deep snow off the roads (and drifts across them) is slow going; you sink into it a little
+    local snowD = 0
+    if Pl.frameName == "world" and not Pl.groundBox and not Pl.inUnderground() and G.snow then
+        snowD = G.snow.depth(Pl.x, Pl.z) + G.snow.driftAt(Pl.x, Pl.z) * 0.8
+    end
+    speed = speed * (1 - math.min(0.55, snowD * 0.6))
+    Pl.snowSink = U.damp(Pl.snowSink or 0, snowD * 0.35, 6, dt)
     if Pl.warmth < 25 then speed = speed * 0.85 end
     if G.weapons and G.weapons.aiming then speed = speed * 0.6 end
     local l = math.sqrt(f * f + r * r)
@@ -358,7 +363,7 @@ function Pl.updateWalk(dt)
     local ground, gbox = P.groundHeight(sets, Pl.x, math.max(ny, Pl.y), Pl.z, RADIUS, STEP)
     local under = Pl.inUnderground()
     if Pl.frameName == "world" and not under then
-        local th = W.height(Pl.x, Pl.z)
+        local th = W.groundHeight(Pl.x, Pl.z)
         if th > ground then ground, gbox = th, nil end
         -- safety: never fall through the terrain
         if ny < th - 1.5 then ny = th end
@@ -453,7 +458,7 @@ function Pl.updateCamera(cam)
     else G.camera.fov = G.weapons.fov(G.camera.baseFov) end
     local bobY = math.abs(math.sin(Pl.bob * math.pi)) * 0.05 * Pl.bobAmt
     local bobX = math.sin(Pl.bob * math.pi) * 0.03 * Pl.bobAmt
-    local eye = Pl.height - 0.12 - Pl.kneel * 0.75 + bobY - Pl.landKick
+    local eye = Pl.height - 0.12 - Pl.kneel * 0.75 + bobY - Pl.landKick - (Pl.frameName == "world" and Pl.snowSink or 0)
     if Pl.mode == "dead" then eye = math.max(0.35, (Pl.deadEye or eye) - Pl.deadT * 1.6) end
     local cy, sy = math.cos(Pl.yaw), math.sin(Pl.yaw)
     local pitch = Pl.pitch

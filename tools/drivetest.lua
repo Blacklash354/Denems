@@ -12,6 +12,7 @@ love.mouse.isDown = function() return false end
 local route = {}
 local wp, t, lastCheck, lastX, lastZ, logT = 1, 0, 0, 0, 0, 0
 local stuckCount = 0
+local dmgBy = {}
 
 local function log(...) print("[drive]", ...) end
 
@@ -33,6 +34,7 @@ function A.start(game)
     Pl.enterSeat(G.stations.driver)
     local dmg = T.damage
     T.damage = function(amount, kind, ...)
+        dmgBy[tostring(kind)] = (dmgBy[tostring(kind)] or 0) + amount
         if amount > 1 then
             log(string.format("damage %.1f %s at (%.0f,%.0f) speed %.1f", amount, tostring(kind), T.x, T.z, T.speed))
             for _, b in ipairs(G.world.colliders:query(T.x - 6, T.z - 6, T.x + 6, T.z + 6, {})) do
@@ -54,6 +56,7 @@ function A.update(dt)
     local target = route[wp]
     if not target then
         log("ARRIVED at the garages in", math.floor(t), "s  fuel", math.floor(T.fuel), "hull", math.floor(T.comp.hull))
+        for k, v in pairs(dmgBy) do log(string.format("   damage by %s: %.1f", k, v)) end
         love.event.quit()
         return
     end

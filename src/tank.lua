@@ -22,6 +22,24 @@ function T.init(game)
         hullInt = TI.buildHull(), turretInt = TI.buildTurret(), bulbs = TI.buildLampBulbs(), turretBulb = TI.buildTurretBulb(),
         radioDial = TI.buildRadioDial(),
     }
+    -- rain caps on the exhaust stacks: they flap open with every pulse of the engine
+    local MB = require("src.engine.meshbuilder")
+    local mb = MB.new(41)
+    mb:material("rust"):color(0.7, 0.55, 0.45)
+    mb:box(0, -0.015, -0.13, 0.25, 0.012, 0.13)
+    mb:material("metal"):color(0.35, 0.33, 0.3)
+    mb:box(-0.03, -0.03, -0.04, 0.03, 0.03, 0.04)
+    T.models.flap = mb:build()
+    -- muffler drums at the foot of the stacks
+    mb = MB.new(42)
+    mb:material("rust"):color(0.62, 0.5, 0.42)
+    for _, z in ipairs({ -0.75, 0.75 }) do
+        mb:cylinder(-4.08, 1.05, z, 0.2, 1.42, 0.2, 8)
+        mb:material("metal"):color(0.2, 0.19, 0.18)
+        mb:cylinder(-4.08, 2.72, z, 0.115, 2.78, 0.115, 6, false)             -- sooty pipe mouth
+        mb:material("rust"):color(0.62, 0.5, 0.42)
+    end
+    T.models.muffler = mb:build()
     T.frame = M3.frame()
     T.prevFrame = M3.frame()
     T.turretLocal = M3.frame()
@@ -39,7 +57,7 @@ function T.init(game)
         for _, w in ipairs(TM.wheelLayout(s)) do T.wheels[#T.wheels + 1] = { x = w[1], y = w[2], z = w[3], side = s, mat = {} } end
     end
     T.mats = {}
-    for _, k in ipairs({ "tank", "turret", "gun", "hatch", "mg", "sprL", "sprR", "levL", "levR" }) do T.mats[k] = {} end
+    for _, k in ipairs({ "tank", "turret", "gun", "hatch", "mg", "sprL", "sprR", "levL", "levR", "flapL", "flapR" }) do T.mats[k] = {} end
 
     -- collider sets
     local ext = {
@@ -71,7 +89,7 @@ function T.reset(state)
     local W = G.world
     T.x, T.z = W.START.x, W.START.z
     T.yaw = W.START.yaw
-    T.y = W.height(T.x, T.z)
+    T.y = W.groundHeight(T.x, T.z)
     T.speed, T.yawRate = 0, 0
     T.nx, T.ny, T.nz = 0, 1, 0
     T.pitchKick, T.pitchVel = 0, 0
@@ -96,6 +114,7 @@ function T.reset(state)
     T.destroyed = false
     T.distAcc = 0
     T.exhaustAcc = 0
+    T.exhaustLoad, T.coughT, T.snowDepth, T.sink = 0, 0, 0.05, 0
     T.flicker = 0
     T.leverL, T.leverR = 0, 0
     T.rackKey = nil
@@ -166,7 +185,9 @@ function T.maxSpeed()
     local engineF = 0.45 + 0.55 * U.clamp(T.comp.engine / 60, 0, 1)
     local trackMin = math.min(T.comp.trackL, T.comp.trackR)
     local trackF = trackMin <= 0 and 0 or (0.45 + 0.55 * U.clamp(trackMin / 70, 0, 1))
-    return 11.5 * engineF * trackF
+    -- deep loose snow off the roads slows the tank down
+    local snowF = 1 - math.max(0, (T.snowDepth or 0.05) - 0.05) * 0.7
+    return 11.5 * engineF * trackF * snowF
 end
 
 function T.startEngine()
@@ -179,6 +200,34 @@ function T.stopEngine()
     if not T.engineOn then return end
     T.engineOn = false
     if G.audio then G.audio.play("engine_stop", { tank = true }) end
+end
+
+-- one puff from each stack. load 0 = idle (thin grey-blue), 1 = labouring / cold start (black).
+-- size multiplies the puff (the start-up coughs are big)
+function T.exhaust(load, size)
+    local f = T.frame
+    local E = G.effects
+    local heat = G.snow and G.snow.heat or 0.5
+    local vx, vz = math.cos(T.yaw) * T.speed * 0.7, math.sin(T.yaw) * T.speed * 0.7
+    for _, z in ipairs({ -0.75, 0.75 }) do
+        local ex, ey, ez = f:toWorld(-4.08, 2.82, z)
+        local bx, by, bz = f:dirToWorld(-0.8, 0, 0)
+        local up = 1.8 + T.rpm / 1400
+        -- thin blue-grey haze when cruising, a black plume only when the engine really labours
+        local k = load * load
+        local g = U.lerp(0.46, 0.12, k)
+        E.spawn(ex, ey, ez, vx + bx + (math.random() - 0.5) * 0.4, up + math.random() * 0.6, vz + bz + (math.random() - 0.5) * 0.4,
+            1.3 + k * 1.6, (0.16 + k * 0.22) * size, (0.45 + k * 0.75) * size, g, g * 1.03, g * 1.14, 0.2 + k * 0.45, false, 0.9, -0.4)
+        -- condensation: a cold engine breathes thick white vapour
+        if math.random() < 0.6 then
+            E.spawn(ex, ey + 0.1, ez, vx + bx * 0.5, up * 0.7, vz + bz * 0.5, 1.4, 0.22 * size, 1.1 * size, 0.86, 0.88, 0.92,
+                0.22 * (1.1 - heat * 0.6), false, 1.2, -0.3)
+        end
+        if size > 1.5 and math.random() < 0.5 then
+            -- sparks and a lick of flame out of the stack on a hard start
+            E.spawn(ex, ey + 0.05, ez, (math.random() - 0.5) * 2, 3 + math.random() * 2, (math.random() - 0.5) * 2, 0.35, 0.06, 0, 1, 0.55, 0.2, 1, true, 0.2, 6)
+        end
+    end
 end
 
 local function engineCanRun() return T.fuel > 0 and T.comp.engine > 8 and not T.destroyed end
@@ -287,6 +336,9 @@ function T.update(dt)
     local front, back = (hs[1] + hs[2]) / 2, (hs[3] + hs[4]) / 2
     local left, right = (hs[1] + hs[3]) / 2, (hs[2] + hs[4]) / 2
     local targetY = math.max((front + back) / 2, W.surfaceHeight(T.x, T.z, T.y + 1.5, 0.5) - 0.1)
+    -- the tracks sink into loose snow (packed hard on the roads)
+    T.sink = U.damp(T.sink or 0, (T.snowDepth or 0.05) * 0.42, 3, dt)
+    targetY = targetY - T.sink
     local dpitch = (front - back) / 6.7
     local droll = (right - left) / 3.4
     -- normal from pitch/roll in world terms
@@ -328,19 +380,26 @@ function T.update(dt)
         if T.gear == 0 then targetRpm = 750 + math.abs(throttle) * 300 end
         T.rpm = U.damp(T.rpm, targetRpm, 4, dt)
         T.fuel = math.max(0, T.fuel - dt * (0.008 + (math.max(0, T.rpm - 700) / 2300) ^ 2 * 0.15))
-        -- exhaust
-        T.exhaustAcc = T.exhaustAcc + dt * (2 + T.rpm / 500)
+        -- exhaust: grey-blue at idle, black when the engine labours, white vapour in the cold air
+        local accel = math.abs(throttle) * (1 - U.clamp(math.abs(T.speed) / math.max(1, maxF), 0, 1))
+        T.exhaustLoad = U.damp(T.exhaustLoad, U.clamp(accel + (T.rpm > 2300 and 0.25 or 0), 0, 1), 3, dt)
+        T.exhaustAcc = T.exhaustAcc + dt * (5 + T.rpm / 220)
         while T.exhaustAcc > 1 do
             T.exhaustAcc = T.exhaustAcc - 1
-            for _, z in ipairs({ -0.75, 0.75 }) do
-                local ex, ey, ez = f:toWorld(-4.08, 2.8, z)
-                G.effects.smoke(ex, ey, ez, 0.35 + T.rpm / 6000, 0.25, 0.25, 0.27, 2.5)
-            end
+            T.exhaust(T.exhaustLoad, 1)
         end
         if G.humans then G.humans.noise(T.x, T.y, T.z, 35 + T.rpm / 3000 * 70) end
     else
         T.rpm = U.damp(T.rpm, T.engineStarting > 0 and 300 or 0, 3, dt)
         T.gear = 0
+        -- a cold diesel coughs black smoke while the starter turns it over
+        if T.engineStarting > 0 then
+            T.coughT = (T.coughT or 0) - dt
+            if T.coughT <= 0 then
+                T.coughT = 0.12 + math.random() * 0.35
+                T.exhaust(1, 2 + math.random() * 2)
+            end
+        end
     end
 
     -- track marks and snow spray
@@ -349,14 +408,9 @@ function T.update(dt)
         T.distAcc = 0
         for _, z in ipairs({ -1.7, 1.7 }) do
             local wx, wy, wz = f:toWorld(-2.8, 0, z)
-            G.effects.trackMark(wx, wz, T.yaw)
+            G.effects.trackMark(wx, wz, T.yaw, T.snowDepth)
         end
-        if math.abs(T.speed) > 3 then
-            for _, z in ipairs({ -1.7, 1.7 }) do
-                local wx, wy, wz = f:toWorld(-3.8 * U.sign(T.speed), 0.2, z)
-                G.effects.snowPuff(wx, wy, wz, 0.5)
-            end
-        end
+
     end
 
     -- turret traverse (hydraulic, heavy)
@@ -595,8 +649,23 @@ function T.draw(cam)
         T.frame:compose(tf, wf)
         R.drawModel(m.sprocket, wf:matrix(T.mats[sp[1]]), dparams)
     end
+    R.drawModel(m.muffler, tankM, dparams)
+    -- exhaust caps: shut when the engine is off, chattering open with the revs
+    for i, z in ipairs({ -0.75, 0.75 }) do
+        local open = 0.08
+        if T.engineOn then
+            open = 0.25 + T.rpm / 2600 * 0.8 + (T.exhaustLoad or 0) * 0.3 + math.sin(T.flicker * (18 + T.rpm / 60) + i * 2) * 0.12
+        elseif T.engineStarting > 0 then
+            open = 0.6 + math.sin(T.flicker * 23 + i) * 0.4
+        end
+        tf:setYawPitchRoll(0, U.clamp(open, 0.05, 1.3), 0)
+        tf.px, tf.py, tf.pz = -4.2, 2.8, z
+        T.frame:compose(tf, wf)
+        R.drawModel(m.flap, wf:matrix(T.mats[i == 1 and "flapL" or "flapR"]), dparams)
+    end
     local turM = fm(T.turretWorld, "turret")
     R.drawModel(m.turret, turM, dparams)
+    if G.snow and not T.destroyed then G.snow.drawTank(tankM, turM) end
     local gunM = fm(T.gunWorld, "gun")
     -- the barrel is outside the sight's field of view; skip it while looking through the optic
     local optic = G.stations and G.stations.gunner.optic and G.player.station == G.stations.gunner

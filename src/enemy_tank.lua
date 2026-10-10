@@ -84,7 +84,7 @@ local function newTank(def)
     local t = { name = def.name, route = def.route, wp = 2, x = def.route[1][1], z = def.route[1][2], yaw = 0,
                 hp = 100, state = "patrol", turretYaw = 0, gunPitch = 0, reload = 3, aimT = 0, speed = 0, timer = 0,
                 alive = true, spotted = false, burnT = 0, mgCool = 0, searchT = 0, id = def.id }
-    t.y = W.height(t.x, t.z)
+    t.y = W.groundHeight(t.x, t.z)
     t.frame = M3.frame()
     t.turretFrame = M3.frame()
     t.gunFrame = M3.frame()
@@ -123,7 +123,7 @@ function E.reset(saved)
             t.alive = false
             t.state = "dead"
             t.x, t.z, t.yaw = saved[i].x, saved[i].z, saved[i].yaw
-            t.y = G.world.height(t.x, t.z)
+            t.y = G.world.groundHeight(t.x, t.z)
             t.burnT = 999
             t.turretOff = true
             t.looted = saved[i].looted
@@ -222,7 +222,19 @@ local function driveTo(t, x, z, speed, dt)
         local px, pz, hit = P.circlePush({ W.staticSet }, nx + c * off, t.y, nz + s * off, 1.9, 0.7, 3.0)
         if hit then nx, nz = nx + px, nz + pz t.speed = t.speed * 0.8 end
     end
+    -- prints in the snow, like ours (only where someone might see them: the decal ring is shared)
+    t.markAcc = (t.markAcc or 0) + U.dist2(t.x, t.z, nx, nz)
     t.x, t.z = nx, nz
+    if t.markAcc > 0.7 then
+        t.markAcc = 0
+        local cam = G.camera
+        if math.abs(cam.x - t.x) < 250 and math.abs(cam.z - t.z) < 250 then
+            local depth = G.snow and G.snow.depth(t.x, t.z) or 0.3
+            for _, side in ipairs({ -1.15, 1.15 }) do
+                G.effects.trackMark(t.x - c * 2.2 - s * side, t.z - s * 2.2 + c * side, t.yaw, depth)
+            end
+        end
+    end
     return U.dist2(t.x, t.z, x, z) < 6
 end
 
@@ -342,7 +354,7 @@ local function updateTank(t, dt)
     local c, s = math.cos(t.yaw), math.sin(t.yaw)
     local hs = {}
     for i, o in ipairs({ { 2.6, -1.4 }, { 2.6, 1.4 }, { -2.8, -1.4 }, { -2.8, 1.4 } }) do
-        hs[i] = W.height(t.x + c * o[1] - s * o[2], t.z + s * o[1] + c * o[2])
+        hs[i] = W.groundHeight(t.x + c * o[1] - s * o[2], t.z + s * o[1] + c * o[2])
     end
     local dp, dr = ((hs[1] + hs[2]) - (hs[3] + hs[4])) / 2 / 5.4, ((hs[2] + hs[4]) - (hs[1] + hs[3])) / 2 / 2.8
     local fx, fy, fz = U.norm3(c, dp, s)

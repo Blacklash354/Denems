@@ -111,7 +111,7 @@ function D.destroy(obj, hx, hy, hz)
                 (math.random() - 0.5) * 3, 0.5 + math.random() * 2, (math.random() - 0.5) * 3, 3 + math.random() * 4,
                 0.8 + size * 0.15, 1.5 + size * 0.2, 0.62, 0.6, 0.57, 0.6, false, 0.8, -0.1)
         end
-        for i = 1, 6 do E.snowPuff(cx + (math.random() - 0.5) * size, W.height(cx, cz), cz + (math.random() - 0.5) * size, 2) end
+        for i = 1, 6 do E.snowPuff(cx + (math.random() - 0.5) * size, W.groundHeight(cx, cz), cz + (math.random() - 0.5) * size, 2) end
         if obj.kind == "building" then buildRuin(obj, mat) end
         if obj.explode then
             G.weapons.explode(cx, cy, cz, 14, 320, "world")
