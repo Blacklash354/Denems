@@ -27,6 +27,13 @@ female Adventurer and Worker), recolours them (olive drab, winter whites, bandit
 skinned meshes into rigid body parts by bone and drops the animations. `fp_arms.glb` is the Swat figure's arms with
 the fingers posed round a grip, for the first-person view.
 
+## Effects - CC0 1.0, by Kenney (https://kenney.nl)
+
+`assets/fx/smoke.png` and `assets/fx/fire.png` are atlases made by `tools/fx_atlas.py` from Kenney's **Smoke
+Particles** (White puff, Explosion, Flash; copy at https://github.com/ETdoFresh/kenney.nl, commit 45df48c) and
+**Particle Pack 1.1** (dirt, smoke, muzzle; copy at https://github.com/Calinou/kenney-particle-pack, commit ab70866),
+shrunk to 48 px sprites. Licences: `assets/fx/LICENSE-smoke-particles.txt`, `assets/fx/LICENSE-particle-pack.txt`.
+
 ## Shader references
 
 * CRT / VHS screen filters in `shaders/post.glsl` are adapted from **Retro Screen FX Free** by

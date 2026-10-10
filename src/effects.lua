@@ -25,8 +25,17 @@ function E.init(game)
     E.bbPtr = ffi.cast("bb_vertex*", E.bbData:getFFIPointer())
     E.meshAlpha = lg.newMesh(BB_FORMAT, MAXP * 6, "triangles", "stream")
     E.meshAdd = lg.newMesh(BB_FORMAT, MAXP * 6, "triangles", "stream")
-    E.meshAlpha:setTexture(Textures.get("smoke"))
-    E.meshAdd:setTexture(Textures.get("flare"))
+    -- sprite atlases from Kenney's CC0 packs (tools/fx_atlas.py): puffs and dirt for smoke, fireballs,
+    -- muzzle flashes and a glow for the bright stuff; the old procedural textures if they are missing
+    local function atlas(path)
+        if not love.filesystem.getInfo(path) then return nil end
+        local img = lg.newImage(path)
+        img:setFilter("nearest", "nearest")
+        return img
+    end
+    E.smokeAtlas, E.fireAtlas = atlas("assets/fx/smoke.png"), atlas("assets/fx/fire.png")
+    E.meshAlpha:setTexture(E.smokeAtlas or Textures.get("smoke"))
+    E.meshAdd:setTexture(E.fireAtlas or Textures.get("flare"))
     -- decals
     E.decalData = love.data.newByteData(MAXDECAL * 6 * ffi.sizeof("psx_vertex"))
     E.decalPtr = ffi.cast("psx_vertex*", E.decalData:getFFIPointer())
@@ -63,10 +72,17 @@ function E.clear()
     for i = 0, MAXDECAL * 6 - 1 do E.decalPtr[i].a = 0 end
 end
 
-local function spawn(x, y, z, vx, vy, vz, life, size, grow, r, g, b, a, add, drag, grav)
+-- atlas cells (see tools/fx_atlas.py): smoke 6x5 - puffs 0-24, dirt 25-27, soft smoke 28-29;
+-- fire 4x4 - fireballs 0-8, muzzle flames 9-12, bright cores 13-14, glow 15
+local SMOKE_COLS, SMOKE_ROWS, FIRE_COLS, FIRE_ROWS = 6, 5, 4, 4
+E.CELL = { puff = { 0, 25 }, dirt = { 25, 3 }, fireball = { 0, 9 }, flame = { 9, 4 }, core = { 13, 2 }, glow = { 15, 1 } }
+local function cellOf(kind) local c = E.CELL[kind] return c[1] + math.random(0, c[2] - 1) end
+
+local function spawn(x, y, z, vx, vy, vz, life, size, grow, r, g, b, a, add, drag, grav, cell)
     if #E.parts >= MAXP then table.remove(E.parts, 1) end
     local p = { x = x, y = y, z = z, vx = vx, vy = vy, vz = vz, life = life, max = life, size = size, grow = grow or 0,
-                r = r, g = g, b = b, a = a, add = add, drag = drag or 0, grav = grav or 0, rot = math.random() * 6.28 }
+                r = r, g = g, b = b, a = a, add = add, drag = drag or 0, grav = grav or 0, rot = math.random() * 6.28,
+                cell = cell or (add and 15 or math.random(0, 24)) }
     E.parts[#E.parts + 1] = p
     return p
 end
@@ -119,38 +135,61 @@ end
 
 function E.muzzleFlash(x, y, z, dx, dy, dz, s)
     s = s or 1
-    spawn(x + dx * 0.1, y + dy * 0.1, z + dz * 0.1, dx * 2, dy * 2, dz * 2, 0.05, 0.35 * s, 1.5 * s, 1, 0.8, 0.45, 1, true)
-    spawn(x + dx * 0.3, y + dy * 0.3, z + dz * 0.3, dx * 4, dy * 4, dz * 4, 0.04, 0.2 * s, 1 * s, 1, 0.9, 0.6, 1, true)
+    -- a star of flame out of the muzzle, a hot core and a wisp of smoke
+    spawn(x + dx * 0.1, y + dy * 0.1, z + dz * 0.1, dx * 2, dy * 2, dz * 2, 0.05, 0.3 * s, 1.5 * s, 1, 0.8, 0.45, 1, true, 0, 0, cellOf("flame"))
+    spawn(x + dx * 0.3, y + dy * 0.3, z + dz * 0.3, dx * 4, dy * 4, dz * 4, 0.04, 0.2 * s, 1 * s, 1, 0.9, 0.6, 1, true, 0, 0, cellOf("core"))
     E.flash(x, y, z, 6 * s, 1, 0.75, 0.4, 1.6, 0.06)
     spawn(x, y, z, dx * 1 + rs(0.2), dy + 0.3, dz * 1 + rs(0.2), 0.8, 0.15 * s, 0.6 * s, 0.6, 0.6, 0.6, 0.35, false, 1, -0.2)
 end
 
 function E.muzzleBlast(x, y, z, dx, dy, dz, s)
+    -- the cannon: a long tongue of fire, a fireball at the muzzle brake, then a ring of smoke and a
+    -- burst of snow kicked off the ground by the blast
     for i = 1, 4 do
         local k = i * 0.6
-        spawn(x + dx * k, y + dy * k, z + dz * k, dx * 6 + rs(1), dy * 6 + rs(1), dz * 6 + rs(1), 0.12, 0.8 + i * 0.3, 6, 1, 0.75, 0.4, 1, true, 3)
+        spawn(x + dx * k, y + dy * k, z + dz * k, dx * 6 + rs(1), dy * 6 + rs(1), dz * 6 + rs(1), 0.12, 0.8 + i * 0.3, 6, 1, 0.75, 0.4, 1, true, 3, 0,
+              i == 1 and cellOf("core") or cellOf("fireball"))
     end
-    for i = 1, 14 do
+    for i = 1, 3 do
+        spawn(x + dx * 0.5, y + dy * 0.5, z + dz * 0.5, dx * 10, dy * 10, dz * 10, 0.08, 0.6, 9, 1, 0.85, 0.5, 1, true, 4, 0, cellOf("flame"))
+    end
+    for i = 1, 18 do
         local a = rnd() * 6.28
         local px, pz = math.cos(a), math.sin(a)
         spawn(x + dx, y + dy, z + dz, dx * 8 + px * 4, dy * 8 + rnd() * 2, dz * 8 + pz * 4, 2.5 + rnd() * 1.5, 1.0, 2.2,
               0.55, 0.55, 0.56, 0.6, false, 2.0, -0.15)
+    end
+    local gy = G.world.groundHeight(x, z)
+    if y - gy < 3.5 then
+        for i = 1, 10 do
+            local a = rnd() * 6.28
+            spawn(x + math.cos(a) * 1.5, gy + 0.2, z + math.sin(a) * 1.5, math.cos(a) * 6, 0.5 + rnd() * 1.5, math.sin(a) * 6,
+                  1.2 + rnd(), 0.6, 2.5, 0.88, 0.9, 0.95, 0.65, false, 1.6, 1)
+        end
     end
     E.flash(x, y, z, 22, 1, 0.7, 0.35, 3.0, 0.12)
 end
 
 function E.explosion(x, y, z, s)
     s = s or 1
-    for i = 1, 10 do
-        spawn(x, y + 0.5, z, rs(6 * s), rnd() * 7 * s, rs(6 * s), 0.25 + rnd() * 0.2, 1.0 * s, 4 * s, 1, 0.6, 0.25, 1, true, 3, -1)
+    -- fireball
+    for i = 1, 14 do
+        spawn(x, y + 0.5, z, rs(6 * s), rnd() * 7 * s, rs(6 * s), 0.3 + rnd() * 0.3, 1.4 * s, 5 * s, 1, 0.6, 0.25, 1, true, 3, -1, cellOf("fireball"))
     end
+    spawn(x, y + 0.8, z, 0, 1, 0, 0.2, 2.8 * s, 7 * s, 1, 0.9, 0.6, 1, true, 0, 0, cellOf("core"))
+    -- a column of dirty smoke that rolls up and hangs
     for i = 1, 18 do
         spawn(x + rs(1.5 * s), y + rnd() * 2 * s, z + rs(1.5 * s), rs(3 * s), 2 + rnd() * 4 * s, rs(3 * s), 4 + rnd() * 3, 1.4 * s, 2.6 * s,
               0.18, 0.17, 0.17, 0.75, false, 1.3, -0.4)
     end
-    for i = 1, 16 do
-        spawn(x, y + 0.3, z, rs(9 * s), 4 + rnd() * 10 * s, rs(9 * s), 1.4 + rnd(), 0.18, 0.2, 0.75, 0.75, 0.78, 0.9, false, 0.3, 12)
+    -- earth and snow thrown up: dark clods fall back, white spray drifts
+    for i = 1, 14 do
+        spawn(x, y + 0.3, z, rs(9 * s), 4 + rnd() * 10 * s, rs(9 * s), 1.4 + rnd(), 0.45 * s, 0.4, 0.28, 0.24, 0.2, 0.95, false, 0.3, 12, cellOf("dirt"))
     end
+    for i = 1, 16 do
+        spawn(x, y + 0.3, z, rs(9 * s), 4 + rnd() * 10 * s, rs(9 * s), 1.4 + rnd(), 0.18, 0.6, 0.82, 0.84, 0.9, 0.85, false, 0.6, 9)
+    end
+    -- glowing fragments
     for i = 1, 10 do
         spawn(x, y + 0.5, z, rs(14 * s), 3 + rnd() * 9 * s, rs(14 * s), 0.6 + rnd() * 0.6, 0.06, 0, 1, 0.6, 0.2, 1, true, 0.2, 12)
     end
@@ -160,7 +199,10 @@ end
 
 function E.fire(x, y, z, s)
     s = s or 1
-    spawn(x + rs(0.2 * s), y, z + rs(0.2 * s), rs(0.2), 1.2 + rnd() * 0.8, rs(0.2), 0.45 + rnd() * 0.3, 0.25 * s, 0.4 * s, 1, 0.55 + rnd() * 0.2, 0.2, 1, true, 0.5, -1)
+    -- licking flames (tinted muzzle-flame sprites) and the odd small fireball
+    local f = spawn(x + rs(0.2 * s), y, z + rs(0.2 * s), rs(0.2), 1.2 + rnd() * 0.8, rs(0.2), 0.45 + rnd() * 0.3, 0.3 * s, 0.4 * s, 1,
+                    0.55 + rnd() * 0.2, 0.2, 1, true, 0.5, -1, rnd() < 0.7 and cellOf("flame") or cellOf("fireball"))
+    f.rot = rs(0.25)          -- flames stand up
     if rnd() < 0.3 then
         spawn(x, y + 0.8 * s, z, rs(0.3), 1.2, rs(0.3), 4, 0.5 * s, 1.5 * s, 0.15, 0.14, 0.14, 0.5, false, 0.3, -0.2)
     end
@@ -485,6 +527,7 @@ end
 
 local function buildBillboards(additive)
     local cam = R.cam
+    local atlas = additive and E.fireAtlas or (not additive and E.smokeAtlas)
     local rx, ry, rz = R.camRight[1], R.camRight[2], R.camRight[3]
     local ux, uy, uz = R.camUp[1], R.camUp[2], R.camUp[3]
     local ptr = E.bbPtr
@@ -512,11 +555,18 @@ local function buildBillboards(additive)
                     bx, by, bz = (ux * c - rx * sn) * s, (uy * c - ry * sn) * s, (uz * c - rz * sn) * s
                 end
                 local cr, cg, cb, ca = p.r * 255, p.g * 255, p.b * 255, a * 255
+                local u0, v0, u1, v1 = 0, 0, 1, 1
+                if atlas then
+                    local cols, rows = additive and FIRE_COLS or SMOKE_COLS, additive and FIRE_ROWS or SMOKE_ROWS
+                    local cell = p.cell
+                    u0, v0 = (cell % cols) / cols, math.floor(cell / cols) / rows
+                    u1, v1 = u0 + 1 / cols, v0 + 1 / rows
+                end
                 local corners = {
-                    { p.x - ax - bx, p.y - ay - by, p.z - az - bz, 0, 0 },
-                    { p.x + ax - bx, p.y + ay - by, p.z + az - bz, 1, 0 },
-                    { p.x + ax + bx, p.y + ay + by, p.z + az + bz, 1, 1 },
-                    { p.x - ax + bx, p.y - ay + by, p.z - az + bz, 0, 1 },
+                    { p.x - ax - bx, p.y - ay - by, p.z - az - bz, u0, v1 },
+                    { p.x + ax - bx, p.y + ay - by, p.z + az - bz, u1, v1 },
+                    { p.x + ax + bx, p.y + ay + by, p.z + az + bz, u1, v0 },
+                    { p.x - ax + bx, p.y - ay + by, p.z - az + bz, u0, v0 },
                 }
                 local order = { 1, 2, 3, 1, 3, 4 }
                 for oi = 1, 6 do

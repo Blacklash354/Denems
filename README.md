@@ -2,8 +2,10 @@
 
 A first-person survival / exploration / tank game for **LÖVE 11.4+** (real 3D, PSX style).
 The war is over and nobody won. A nuclear winter has buried the Soviet countryside in snow; what is
-left of the army, bandits and a few survivors fight over the ruins. Your heavy tank is your shelter,
-storage, weapon platform and only way across a 4 km open world.
+left of the Red Army, bandits and a few survivors fight over the ruins. You are Kurt Weber, a German tank
+driver left behind in the south of the map with a worn-out heavy tank; what is left of your company is dug in at
+an outpost by a frozen lake far to the north. The tank is your shelter, storage, weapon platform and only way
+across the 4 km of snow between you and them.
 
 The 3D renderer, the tank, the world and **all audio** are generated procedurally in Lua. On top of that the game
 loads hand-made PSX model packs (Soviet panel blocks, a metro car and a helicopter, a fuel station, wrecks,
@@ -33,7 +35,9 @@ Requires LÖVE 11.4 or newer (tested on 11.5). The first launch takes ten second
 | Pause | `Esc` |
 | FPS / draw-call counter | `F3` |
 
-**Driver seat:** `W/S` throttle, `A/D` steer (tracks pivot), `Space` brake, `F` engine, `L` headlights, `V` toggles a third-person chase camera (mouse orbits it).
+**Driver seat:** `W/S` throttle, `A/D` steer (tracks pivot), `Space` brake, `F` engine, `L` headlights, `V` toggles a third-person chase camera (mouse orbits it). The mouse turns your head: the compass is right of the vision slit, the radar behind your left shoulder.
+
+**Challenges:** when a sentry stops you, answer with `1`-`4` or a click.
 **Gunner seat:** mouse or `WASD` traverses the turret and elevates the gun, `RMB` optic, wheel zoom,
 `R` loads a shell from the racks, `T`/`1`/`2` choose AP or HE, `LMB` fires.
 **Bow MG:** mouse aims, `LMB` fires (watch the heat), `R` loads a new belt from storage.
@@ -112,16 +116,28 @@ while the engine is still cold), and only puts out a black plume when it really 
 
 There are no monsters - only people, and they are dangerous enough.
 
-* **Soldiers** (greatcoats, ushankas, winter camo; NBC suits and gas masks around the power plant) hold the
-  checkpoint, the city square, the airfield, the base, the tower and the plant. They shoot looters on sight.
+* **Soldiers** of the Red Army (greatcoats and olive helmets, gas masks, winter whites, a bareheaded sergeant; NBC
+  suits around the power plant) hold the checkpoint, the city square, the airfield, the base, the tower and the plant,
+  and patrol the roads.
 * **Bandits** (balaclavas, leather, tracksuits) squat in the garages, the tractor works, the school and the city's east side.
 * **Survivors** sit at their fires in the camp, in Pervomaisk, in the city and in the forest. They talk, give
   you something useful the first time, trade (Old Petro) and fight bandits and soldiers. Shooting one turns their friends against you.
 
+* **Our own** - a German garrison in field grey - holds Stutzpunkt Nord in the far north.
+
+Not everyone shoots first. About half the army posts and a third of the bandit hideouts are *wary*: when they
+spot you on foot one of them raises his rifle, walks over and asks who you are and where you are coming from
+("STOI! Hands where I can see them!"). The game pauses on the question and you pick an answer: tell them you are
+trying to get back north, claim to be a survivor, hand over food, documents or ammunition, bluff a bandit with your
+tank, or tell them it is none of their business. The right answer (or the right bribe) and the whole post lets you
+pass; a wrong one, walking off or pointing a gun at them starts the fight. A German tank gets no questions.
+
 Factions fight each other whenever they meet. Squads walk between places along the roads (they keep travelling
 while you are far away), and a squad that is wiped out is replaced by a new one after a while. Bodies can be searched.
-The figures are rigid-part PSX characters: procedural outfits plus figures from `assets/characters_psx.glb`,
-with two-bone IK so their hands sit on the rifle.
+The people are Quaternius' CC0 modular men and women, recoloured and cut into rigid PSX body parts by
+`tools/people_convert.py` (heads, torsos, upper arms, forearms with hands, thighs, shins with boots), posed with
+two-bone IK so their hands sit on the rifle; the NBC troops and masked raiders come from
+`assets/characters_psx.glb`.
 
 ## Cold, clothes and survival
 
@@ -141,8 +157,10 @@ and the repair depot, the airfield hangars and tank park, the army base and wrec
 
 ## Weapons in your hands
 
-Both arms are modelled (sleeves, gloves) and follow the gun with two-bone IK: the right hand on the grip, the left on
-the handguard. Reloads are done by the left hand: it takes the magazine out, goes to the pouch, brings a new one,
+Your arms are the soldier model's own sleeves and gloved hands, the fingers posed round the pistol grip and under the
+handguard, tinted with the coat and gloves you wear. They follow the gun with two-bone IK: the right hand on the grip,
+the left on the handguard (with the pistol it hangs out of sight until a reload). The gun is drawn with its own,
+narrower field of view so it points where you look instead of bending towards the middle of the screen. Reloads are done by the left hand: it takes the magazine out, goes to the pouch, brings a new one,
 seats it (the rounds count when the magazine clicks in) and works the charging handle or slide if the gun was empty.
 The shotgun is loaded shell by shell through the loading port and can be interrupted by firing.
 
@@ -163,28 +181,58 @@ The picture is dithered to 15-bit colour like the console; "SCREEN FILTER" in se
 Every road wheel, idler and sprocket turns with its own track, so the two sides run at different speeds in a turn.
 
 Components (engine, both tracks, turret, cannon and hull) can be damaged. Repairs cost repair kits.
-You can build repair kits from spare parts.
+You can build repair kits from spare parts. A shell in the running gear can throw a track: the belt runs off the
+wheels and lies in the snow beside the tank, and the tank can only pivot until you fit it back on with a repair kit.
+
+The driver can turn his head right round in the seat: forward through the vision slit, right to the compass on the
+front wall (the red needle swings to north as the hull turns; the red mark on the rim is the nose), back over the
+left shoulder to the radar screen.
+
+### Enemy armour
+
+The Red Army still has tanks: T-34-85s (sloped glacis and sides, five big Christie road wheels, the long 85 mm, fuel
+drums and an unditching log) and IS-2s (longer hull, six wheels, a big turret and the 122 mm with its muzzle brake),
+in a patchy winter whitewash with white tactical numbers. They patrol the roads, the base, the airfield, the plant
+and the tower. Frontal armour shrugs off a lot, the rear is weak, and a hit low on the side throws a track and
+leaves them sitting where they are - the turret still fights.
 
 ## Destruction
+
+Trees break. Ram one hard and the trunk snaps: the butt is kicked forward, the crown comes down backwards on the
+tank, lies across the hull and slides off the back as you drive on (snow showers off it and onto your decks); push one
+slowly and it goes over ahead of you. Shell blasts and direct hits fell them too. Falling trees are rigid rods
+hinged at the stump that rest on the tank or the ground; the stumps stay and the fallen trees are saved.
 
 Most man-made objects in the world are real destructible objects with their own hit points and
 material: checkpoint barrier poles, crates, plank stacks, sandbags, concrete blocks, steel hedgehogs,
 fences, watchtowers, tents, signs, vehicles and whole houses. Rifle, SMG and hull-MG bullets chip
 away at them (wood and cloth go fast, steel slowly, concrete barely); cannon shells and explosions
 take out much more. A destroyed object loses its collision, throws physical debris and a dust cloud,
-houses collapse into a rubble mound with wall stubs, vehicles are burnt out with fire and black smoke,
-and fuel tanks explode. The tank flattens poles, fences, crates and sandbags when driving through them.
+houses sink into a rubble mound with wall stubs in a rolling cloud of dust, vehicles are burnt out with fire and
+black smoke, and fuel tanks explode. Debris has a shape (splintered planks, bent sheet metal, rubble, slabs with
+rebar) and whatever lands on the tank rides along and slides off as it rattles and tilts. The tank flattens poles,
+fences, crates and sandbags when driving through them.
+
+Smoke, fire, explosions and muzzle flashes are sprites from Kenney's CC0 particle packs, shrunk to blocky PSX size
+(`assets/fx`, built by `tools/fx_atlas.py`): rolling puffs, fireballs, star-shaped muzzle flames, clods of earth.
 
 ## Radar
 
-The tank carries a radar: a live green scope on the left sponson inside the hull, mirrored on the HUD while you sit
-at a station. New hostile contacts are announced briefly ("RADAR: HOSTILES NE 140M").
+The tank carries a radar: a live green scope on the left sponson inside the hull (turn round in the driver's seat to
+read it), mirrored on the HUD only while you are glued to the gunner's sight. New hostile contacts are announced
+briefly ("RADAR: HOSTILES NE 140M").
 
-## Story
+## Story and the map
 
-There is no objective list, but there is a thread to follow: the radio in the tank picks up broadcasts that mark
-places on the map. Tower Seven's transmitter points to Object 12, the bunker holds the plant's keycard, and someone is
-still transmitting from the power plant's control block.
+There is no objective list and no marker. Hans left a note taped to the instrument panel by the driver's seat: the
+company pulled back north to Stutzpunkt Nord, the outpost by the lake past the big power station - follow the
+compass. A soldier's postcard at the kolkhoz, a Red Army order at the checkpoint and two signposts in the north
+point the same way. Reach the outpost, on foot or in the tank, and you are home.
+
+The map (`M`) is under a fog of war: only ground you have seen yourself is drawn (you see further from the tank),
+and places you have only read or heard about show as "NAME ?". There is a second thread for the curious: the radio
+picks up broadcasts that lead from Tower Seven's transmitter to Object 12 and the power plant's control block, where
+someone is still alive.
 
 ## Project layout
 
@@ -204,14 +252,16 @@ src/engine/gltf.lua    .glb loader for rigid part-animated models; src/psx_asset
 src/world_psx.lua      fuel station, city blocks / metro car / helicopter, roadside wrecks, forest clutter from the packs
 src/rig.lua            rigid-part human figures (outfits) and two-bone IK
 src/characters.lua     figures cut from assets/characters_psx.glb into rigid parts; src/engine/obj.lua .obj loader
-src/humans.lua         soldiers, bandits and survivors: faction AI, combat, squads (A-life), dialogue, trade
-src/destruction.lua    destructible objects: damage, collapse, ruins, debris
+src/humans.lua         soldiers, bandits, survivors and our garrison: faction AI, combat, squads (A-life), dialogue, trade
+src/people.lua         modelled people (assets/people, built by tools/people_convert.py) for the rig
+src/dialog.lua         challenges: wary sentries ask who you are; answers, bribes and bluffs
+src/destruction.lua    destructible objects: damage, collapse, ruins, debris; falling trees
 src/tank*.lua          tank model, interior, physics/damage, driver / gunner / MG stations
 src/player.lua         first-person controller (world or tank-local frame), ladders, seats
 src/interaction.lua    reusable interactable components ([E] prompts, hold-to-use)
 src/weapons.lua        shells, hitscan, explosions, personal firearms and viewmodel
 src/viewmodel.lua      first-person arms, grip poses and keyframed reload tracks
-src/enemy_tank.lua     rare Soviet-inspired enemy tanks
+src/enemy_tank.lua     Soviet T-34-85 and IS-2 tanks: patrols, gunnery, armour zones, thrown tracks, burning wrecks
 src/effects.lua        particles, flashes, tracers, casings, footprints and track marks (filled in by snowfall)
 src/snow.lua           snow depth, drifts across the roads, snow on the tank, engine heat and steam
 src/audio.lua          procedural sound synthesis, 3D audio, interior muffling, ambience, music
@@ -224,6 +274,13 @@ tools/geartest.lua     running gear check (love . --geartest): tracks and all wh
 tools/tour.lua         world tour (love . --tour): every place, roads, people, the map and a panel block inside
 tools/vmtest.lua       first-person weapons (love . --vmtest): every gun at the hip, aimed and through its reload
 tools/snowtest.lua     snow (love . --snowtest): ploughs a drift, leaves prints, runs in deep snow, melts, snows over
+tools/treetest.lua     destruction (love . --treetest): a tree on the tank, a tree pushed over, a blast, debris, a collapse
+tools/peopletest.lua   people (love . --peopletest): every figure in a row, idle, aiming, walking and sitting
+tools/tanktest.lua     armour (love . --tanktest): T-34 and IS-2 close up, a track shot off theirs and ours
+tools/talktest.lua     challenges (love . --talktest): paying a sentry with food, refusing a bandit
+tools/northtest.lua    the way north (love . --northtest): Hans' note, the compass, the radar, map fog, the outpost
+tools/fxtest.lua       effects (love . --fxtest): rifle, cannon blast, shell explosion, fire
+tools/people_convert.py, tools/fx_atlas.py   build assets/people and assets/fx from the CC0 source packs
 ```
 
 Saves and settings are JSON files in the LÖVE save directory (`steel_hearth`).
