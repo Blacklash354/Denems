@@ -68,6 +68,23 @@ function TM.buildBelt(pts, zIn, zOut, side, seed)
     return mb:build()
 end
 
+-- a thrown track: the belt unrolled flat on the ground, links running back from the origin along -x
+function TM.buildLyingTrack(width, length, seed)
+    local mb = MB.new(seed or 9)
+    mb.jitter = 0.06
+    mb:material("tread"):color(0.8, 0.78, 0.76)
+    local link, gap = 0.17, 0.02
+    local n = math.floor(length / (link + gap))
+    for i = 0, n - 1 do
+        local x0 = -i * (link + gap)
+        -- a slight wave where the belt buckled as it came off
+        local y = 0.02 + math.max(0, math.sin(i * 0.37)) * 0.05 * (i < 8 and 1 or 0.3)
+        mb:box(x0 - link, y - 0.03, -width / 2, x0, y + 0.03, width / 2)
+        mb:box(x0 - link * 0.6, y + 0.03, -0.04, x0 - link * 0.4, y + 0.07, 0.04)       -- guide horn
+    end
+    return mb:build()
+end
+
 function TM.buildTrack(side)
     return TM.buildBelt(trackPath(), side * 1.45, side * 1.97, side, side > 0 and 3 or 4)
 end

@@ -774,6 +774,7 @@ function Game.draw()
     elseif Game.state == "map" then G.map.draw(UI)
     elseif Game.state == "message" then Game.drawMessage()
     elseif Game.state == "trade" then Game.drawTrade()
+    elseif Game.state == "dialog" then G.dialog.draw()
     elseif Game.state == "pause" then G.menu.drawPause()
     elseif Game.state == "settings" then G.menu.drawSettings(function() Game.state = "pause" end)
     elseif Game.state == "dead" then Game.drawDead()
@@ -895,6 +896,8 @@ function Game.keypressed(key)
         if key == "m" or key == "escape" or key == "tab" then Game.state = "play" love.mouse.setRelativeMode(true) end
     elseif Game.state == "trade" then
         if key == "e" or key == "escape" or key == "tab" then Game.state = "play" love.mouse.setRelativeMode(true) end
+    elseif Game.state == "dialog" then
+        G.dialog.keypressed(key)
     elseif Game.state == "message" then
         if key == "escape" or key == "e" or key == "return" then Game.state = "play" love.mouse.setRelativeMode(true) end
     elseif Game.state == "pause" then

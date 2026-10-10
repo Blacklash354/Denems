@@ -160,6 +160,13 @@ function H.init(game)
 end
 
 
+local function wary(faction, key)
+    key = key % 6
+    if faction == "military" then return key % 2 == 0 end
+    if faction == "bandit" then return key % 3 == 0 end
+    return false
+end
+
 local function newHuman(i, d)
     local W = G.world
     local looks = LOOKS[d.faction] or LOOKS.loner
@@ -175,6 +182,13 @@ local function newHuman(i, d)
         h.look = "Character_28_HM"
     end
     if d.y then h.fixedY = true end
+    -- not everyone shoots first: wary posts walk up and ask who you are (dialog.lua). Decided per place
+    -- (the location it guards, else a 150 m cell), so a group either challenges you or opens fire together
+    local key = math.floor(d.x / 150) * 31 + math.floor(d.z / 150) * 17
+    for li, l in ipairs(W.locations) do
+        if math.abs(d.x - l.x) < l.r * 1.4 and math.abs(d.z - l.z) < l.r * 1.4 then key = li * 5 + 1 break end
+    end
+    if wary(d.faction, key) then h.wary, h.hostile = true, false end
     return h
 end
 
@@ -192,10 +206,32 @@ function H.reset(saved)
             h.squad = sq
             h.slot = k
             h.state = "idle"
+            h.wary = wary(s.faction, si * 7)
+            if h.wary then h.hostile = false else h.hostile = H.FACTIONS[s.faction].hostile end
             H.list[#H.list + 1] = h
             sq.members[#sq.members + 1] = h
         end
         H.squads[si] = sq
+    end
+    -- a post is everyone of a faction standing within reach of each other: they all share the first
+    -- one's choice to challenge or to shoot
+    local done = {}
+    for _, h in ipairs(H.list) do
+        if not h.squad and not done[h] then
+            local w, stack = h.wary, { h }
+            done[h] = true
+            while #stack > 0 do
+                local a = table.remove(stack)
+                a.wary = w
+                a.hostile = (not w) and H.FACTIONS[a.faction].hostile
+                for _, o in ipairs(H.list) do
+                    if not done[o] and not o.squad and o.faction == a.faction and math.abs(o.x - a.x) + math.abs(o.z - a.z) < 60 then
+                        done[o] = true
+                        stack[#stack + 1] = o
+                    end
+                end
+            end
+        end
     end
     if saved then
         for i, h in ipairs(H.list) do
@@ -203,6 +239,7 @@ function H.reset(saved)
             if s then
                 h.hp = s.hp or h.hp
                 h.talked, h.looted, h.hostile = s.talked, s.looted, s.hostile
+                h.wary, h.passed = s.wary, s.passed
                 if s.x then h.x, h.z = s.x, s.z h.y = h.fixedY and h.y or W.groundHeight(h.x, h.z) end
                 if s.dead then h.state = "dead" h.deathT = 99 end
             end
@@ -217,7 +254,8 @@ end
 function H.serialize()
     local out = {}
     for i, h in ipairs(H.list) do
-        out[i] = { hp = h.hp, dead = h.state == "dead", talked = h.talked, looted = h.looted, hostile = h.hostile, x = h.x, z = h.z }
+        out[i] = { hp = h.hp, dead = h.state == "dead", talked = h.talked, looted = h.looted, hostile = h.hostile, x = h.x, z = h.z,
+                   wary = h.wary, passed = h.passed }
     end
     out.squads = {}
     for si, sq in ipairs(H.squads) do out.squads[si] = { x = sq.x, z = sq.z, wp = sq.wp, deadT = sq.deadT } end
@@ -332,10 +370,29 @@ local function pickTarget(h)
     return best, bx, by, bz, inTank
 end
 
-local function alertFriends(h, tx, tz)
+-- the rest of a wary post turns to watch while one of them does the talking
+local function alertFriendsChallenge(h)
+    local px, _, pz = G.player.feetWorld()
+    local speaker, sd = h, h.role == "sit" and 1e9 or U.dist2(h.x, h.z, px, pz)
+    for _, o in ipairs(H.list) do
+        if o ~= h and o.faction == h.faction and o.state ~= "dead" and o.wary and not o.hostile
+            and math.abs(o.x - h.x) + math.abs(o.z - h.z) < 40 and o.state ~= "combat" then
+            o.state, o.timer, o.watchOnly, o.challenged = "challenge", 0, true, false
+            -- the nearest one on his feet walks over and does the talking
+            local d = U.dist2(o.x, o.z, px, pz)
+            if o.role ~= "sit" and not o.fixedY and d < sd then speaker, sd = o, d end
+        end
+    end
+    h.watchOnly = true
+    speaker.watchOnly = false
+end
+
+local function alertFriends(h, tx, tz, target)
     for _, o in ipairs(H.list) do
         if o ~= h and o.faction == h.faction and o.state ~= "dead" and o.state ~= "combat" and o.state ~= "flee"
             and U.dist2(o.x, o.z, h.x, h.z) < 45 then
+            -- a fight with the player: the wary ones join in
+            if target == "player" and h.hostile then o.hostile, o.wary = true, false end
             o.state = "combat" o.lastX, o.lastZ, o.lastSeen = tx, tz, 0
         end
     end
@@ -373,7 +430,9 @@ local function updateSquad(sq, dt, px, pz)
             sq.deadT, sq.wp, sq.x, sq.z = 0, 2, r[1], r[2]
             for k, m in ipairs(sq.members) do
                 m.state, m.hp, m.looted, m.deathT, m.speed = "idle", 95, false, 0, 0
-                m.hostile = H.FACTIONS[m.faction].hostile
+                m.wary = wary(m.faction, sq.id * 7)
+                m.hostile = (not m.wary) and H.FACTIONS[m.faction].hostile
+                m.passed = false
                 m.loot = lootFor(m.faction)
                 m.x, m.z = r[1] + math.cos(k) * 2, r[2] + math.sin(k) * 2
                 m.y = G.world.groundHeight(m.x, m.z)
@@ -419,7 +478,28 @@ local function updateSquad(sq, dt, px, pz)
     end
 end
 
+-- a wary sentry notices the player: on foot you get challenged, a German tank gets no questions
+local function watchPlayer(h)
+    if not h.wary or h.hostile or h.passed or h.state == "combat" or h.state == "flee" or h.state == "challenge" then return end
+    local tx, ty, tz, tank = playerTarget()
+    if not tx then return end
+    local d = U.dist3(h.x, h.y + 1.6, h.z, tx, ty, tz)
+    if d > (tank and 130 or 24) then return end
+    local fx, fz = math.cos(h.yaw), math.sin(h.yaw)
+    local facing = (fx * (tx - h.x) + fz * (tz - h.z)) / math.max(d, 0.1)
+    if (facing > -0.3 or d < 8) and los(h.x, h.y + 1.6, h.z, tx, ty, tz) then
+        if tank then
+            h.wary, h.hostile = false, true
+        else
+            h.state, h.timer, h.challenged = "challenge", 0, false
+            alertFriendsChallenge(h)
+        end
+    end
+end
+
 local function updateFighter(h, dt)
+    h.watchT = (h.watchT or math.random() * 0.4) - dt
+    if h.watchT <= 0 then h.watchT = 0.4 watchPlayer(h) end
     -- sensing
     h.senseT = (h.senseT or math.random() * 0.3) - dt
     if h.senseT <= 0 then
@@ -432,7 +512,7 @@ local function updateFighter(h, dt)
                 h.state = "combat"
                 h.cool = 0.8 + math.random()
                 say(h)
-                alertFriends(h, tx, tz)
+                alertFriends(h, tx, tz, t)
             end
         else
             for _, n in ipairs(H.noises) do
@@ -485,6 +565,44 @@ local function updateFighter(h, dt)
             h.aim = U.damp(h.aim, 0, 4, dt)
             if h.lastX and not h.fixedY and h.role ~= "trader" then moveTo(h, h.lastX, h.lastZ, 2.6, dt) end
             if h.lastSeen > 10 then h.state = "search" h.timer = 10 end
+        end
+    elseif s == "challenge" then
+        -- rifle up, walk to talking distance and ask; run off or point a gun at them and they open fire
+        local tx, ty, tz, tank = playerTarget()
+        if not tx or tank then h.state = "combat" h.hostile = true return end
+        local d = U.dist2(h.x, h.z, tx, tz)
+        local want = math.atan2(tz - h.z, tx - h.x)
+        h.yaw = U.dampAngle(h.yaw, want, 6, dt)
+        h.aim = U.damp(h.aim, 1, 5, dt)
+        h.aimPitch = math.atan2(ty - (h.y + 1.42), math.max(d, 0.5))
+        h.timer = h.timer + dt
+        if not h.challenged and not h.watchOnly then
+            h.challenged = true
+            say(h, h.faction == "military" and "STOI! Don't move!" or "Hey you! Stay right there!")
+        end
+        if not h.watchOnly and d > 4.5 and not h.fixedY and h.role ~= "sit" then moveTo(h, tx, tz, 1.8, dt)
+        else h.speed = U.damp(h.speed, 0, 6, dt) end
+        if d > 40 then
+            -- walked off: that settles it
+            h.state, h.hostile = "combat", true
+            h.lastX, h.lastZ, h.lastSeen = tx, tz, 0
+        elseif not h.watchOnly and (d < 6.5 or h.timer > 6) and G.game.state == "play" and G.player.frameName == "world" then
+            G.dialog.open(h)
+        end
+        -- a rifle pointed at them is an answer too
+        local Wp = G.weapons
+        if Wp.aiming and d < 30 then
+            local cam = G.camera
+            local ax, az = h.x - cam.x, h.z - cam.z
+            local al = math.max(0.1, math.sqrt(ax * ax + az * az))
+            if (cam.fx * ax + cam.fz * az) / al > 0.97 then
+                h.aimedAt = (h.aimedAt or 0) + dt
+                if h.aimedAt > 1.0 then
+                    say(h, "He's going for his gun!")
+                    h.state, h.hostile = "combat", true
+                    h.lastX, h.lastZ, h.lastSeen = tx, tz, 0
+                end
+            end
         end
     elseif s == "flee" then
         h.timer = h.timer - dt
@@ -592,7 +710,7 @@ function H.damage(h, amount, byPlayer)
         for _, o in ipairs(H.list) do
             if o.faction == h.faction and U.dist2(o.x, o.z, h.x, h.z) < 40 then o.hostile = true end
         end
-        if G.ui then G.ui.warning("THE SURVIVORS TURNED HOSTILE") end
+        if G.ui then G.ui.warning(h.faction == "loner" and "THE SURVIVORS TURNED HOSTILE" or (h.faction == "military" and "THE SOLDIERS OPEN FIRE" or "THE BANDITS OPEN FIRE")) end
     end
     if h.state ~= "combat" and h.state ~= "flee" then
         h.state = "combat"

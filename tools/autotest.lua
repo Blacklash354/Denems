@@ -43,6 +43,8 @@ function A.start(game)
     G = game
     G.startNewGame()
     G.game.helpT = nil
+    -- scripted walks must not be stopped by a sentry asking questions (tools/talktest.lua covers that)
+    G.dialog.open = function() end
     love.filesystem.createDirectory("autotest")
     local Pl, T, Game = G.player, G.tank, G.game
     local W = G.world

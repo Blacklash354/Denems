@@ -272,6 +272,23 @@ function T.init()
         return v * 1.35, v * 0.72, v * 0.45
     end)
     -- worn dark grey tank paint with rust, chips, mud and whitewash streaks
+    -- Soviet 4BO green, half covered in a hasty winter whitewash, scuffed back to green and rust
+    make("sovwinter", 64, function(x, y, s, r)
+        local n = tfbm(x, y, s, 4, 4, 61)
+        local v = 0.3 + n * 0.08
+        local cr, cg, cb = v * 0.92, v * 1.12, v * 0.72
+        local wash = tfbm(x, y, s, 2, 3, 62) + (tnoise(x, y, s, 16, 63) - 0.5) * 0.25
+        if wash > 0.42 then
+            local k = U.clamp((wash - 0.42) * 6, 0, 1)
+            local w = 0.78 + n * 0.1
+            cr, cg, cb = U.lerp(cr, w * 0.98, k), U.lerp(cg, w, k), U.lerp(cb, w * 0.97, k)
+        end
+        local streak = tnoise(x, 0, s, 16, 64)
+        if streak > 0.7 and (y / s) > 0.25 then cr, cg, cb = cr * 0.82, cg * 0.8, cb * 0.78 end
+        if tfbm(x, y, s, 8, 3, 65) > 0.74 then cr, cg, cb = 0.4, 0.27, 0.18 end
+        if r:next() > 0.985 then cr, cg, cb = 0.45, 0.45, 0.43 end
+        return cr, cg, cb
+    end)
     make("tank", 64, function(x, y, s, r)
         local n = tfbm(x, y, s, 4, 4, 16)
         local camo = tfbm(x, y, s, 2, 2, 116)

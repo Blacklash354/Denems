@@ -377,6 +377,22 @@ local function build()
             local twigs = lpb(noise()) * exp(-t * 3) * 0.8
             return thud + ring + twigs
         end)
+        -- a track parting: a sharp crack, then the links clattering off the wheels
+        local lps = lowpass(3000)
+        local links = {}
+        for i = 1, 22 do links[i] = 0.08 + i * 0.045 + random() * 0.02 end
+        S.track_snap = gen(1.4, function(t)
+            local s = 0
+            if t < 0.06 then s = s + noise() * (1 - t / 0.06) * 1.4 + sin(TAU * 240 * t) * exp(-t * 30) end
+            for i, c in ipairs(links) do
+                local d = t - c
+                if d > 0 and d < 0.05 then
+                    local f = 900 + (i % 5) * 140
+                    s = s + (sin(TAU * f * d) * 0.5 + noise() * 0.5) * exp(-d * 90) * (1 - i / 26)
+                end
+            end
+            return lps(s) * 0.9
+        end)
         local lp2, lp3 = lowpass(400), lowpass(1500)
         S.collapse = gen(3.5, function(t)
             local rumble = lp2(noise()) * 4 * env(t, 0.1, 1.2)

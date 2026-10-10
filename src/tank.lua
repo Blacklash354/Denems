@@ -21,6 +21,7 @@ function T.init(game)
         sprocket = TM.buildSprocket(), lever = TM.buildLever(),
         hullInt = TI.buildHull(), turretInt = TI.buildTurret(), bulbs = TI.buildLampBulbs(), turretBulb = TI.buildTurretBulb(),
         radioDial = TI.buildRadioDial(),
+        lyingTrack = TM.buildLyingTrack(0.52, 9.5, 43),
     }
     -- rain caps on the exhaust stacks: they flap open with every pulse of the engine
     local MB = require("src.engine.meshbuilder")
@@ -127,6 +128,35 @@ function T.reset(state)
     end
     T.updateFrames(0)
     T.prevFrame:copyFrom(T.frame)
+    T.lying = {}
+    for _, comp in ipairs({ "trackL", "trackR" }) do
+        if T.comp[comp] <= 0 then T.throwTrack(comp, true) end
+    end
+end
+
+-- a track broken by a hit runs off the wheels and lies in the snow: the tank can only pivot on
+-- the good one until the crew fits it back on (a repair kit at the track)
+function T.throwTrack(comp, quiet)
+    local side = comp == "trackL" and -1 or 1
+    for _, l in ipairs(T.lying or {}) do if l.comp == comp then return end end
+    local f = T.frame
+    local x, y, z = f:toWorld(3.3, 0, side * 2.6)
+    local l = { comp = comp, x = x, y = G.world.groundHeight(x, z), z = z, yaw = T.yaw + side * 0.05, mat = {} }
+    T.lying[#T.lying + 1] = l
+    if quiet then return end
+    for k = 0, 4 do
+        local px, py, pz = f:toWorld(2.5 - k * 1.5, 0.6, side * 1.72)
+        G.effects.debris(px, py, pz, "metal", 2, 3.5, 0.16)
+        G.effects.sparks(px, py, pz, 0, 1, side, 6)
+    end
+    if G.audio then
+        G.audio.play("track_snap", { x = x, y = y + 0.5, z = z, tank = G.player.frameName == "tank", big = true })
+    end
+    if G.ui then
+        G.ui.warning((side < 0 and "LEFT" or "RIGHT") .. " TRACK THROWN")
+        G.ui.notify("THE TANK CAN ONLY PIVOT - REPAIR THE TRACK")
+    end
+    T.speed = T.speed * 0.3
 end
 
 function T.serialize()
@@ -541,7 +571,9 @@ function T.damage(amount, kind, lx, ly, lz)
         local r = math.random()
         comp = r < 0.4 and "trackL" or (r < 0.8 and "trackR" or "hull")
     end
+    local before = T.comp[comp]
     T.comp[comp] = math.max(0, T.comp[comp] - amount)
+    if (comp == "trackL" or comp == "trackR") and before > 0 and T.comp[comp] <= 0 then T.throwTrack(comp) end
     if comp ~= "hull" then T.comp.hull = math.max(0, T.comp.hull - amount * 0.35) end
     T.lightFlick = 0.6
     local inside = G.player and G.player.frameName == "tank"
@@ -637,8 +669,22 @@ function T.draw(cam)
     local dmgTint = T.destroyed and { 0.25, 0.22, 0.2, 1 } or nil
     local dparams = dmgTint and { tint = dmgTint } or nil
     R.drawModel(m.hull, tankM, dparams)
-    R.drawModel(m.trackL, tankM, { uv = { T.trackOffL, 0 }, tint = dmgTint })
-    R.drawModel(m.trackR, tankM, { uv = { T.trackOffR, 0 }, tint = dmgTint })
+    if T.comp.trackL > 0 then R.drawModel(m.trackL, tankM, { uv = { T.trackOffL, 0 }, tint = dmgTint }) end
+    if T.comp.trackR > 0 then R.drawModel(m.trackR, tankM, { uv = { T.trackOffR, 0 }, tint = dmgTint }) end
+    -- thrown tracks lying where they came off (gone once the track is fitted back on)
+    for i = #(T.lying or {}), 1, -1 do
+        local l = T.lying[i]
+        if T.comp[l.comp] > 0 then table.remove(T.lying, i)
+        else
+            local c, s = math.cos(l.yaw), math.sin(l.yaw)
+            local mm = l.mat
+            mm[1], mm[2], mm[3], mm[4] = c, 0, -s, l.x
+            mm[5], mm[6], mm[7], mm[8] = 0, 1, 0, l.y
+            mm[9], mm[10], mm[11], mm[12] = s, 0, c, l.z
+            mm[13], mm[14], mm[15], mm[16] = 0, 0, 0, 1
+            R.drawModel(m.lyingTrack, mm)
+        end
+    end
     local tf, wf = T.tmpFrame, T.tmpFrame2
     for _, w in ipairs(T.wheels) do
         tf:setYawPitchRoll(0, (w.side < 0 and T.wheelAngL or T.wheelAngR) + w.x * 1.7, 0)
