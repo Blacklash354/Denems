@@ -34,13 +34,13 @@ function PA.has(path)
     return love.filesystem.getInfo(path) ~= nil
 end
 
--- the AK-74 with its receiver at the origin, muzzle along +x
-function PA.emitAK(mb)
+-- the AK-74 with its receiver at the origin, muzzle along +x (keep(x, y, z) may filter triangles)
+function PA.emitAK(mb, keep)
     local asset = Gltf.load(PA.AK)
     local prims, x0, y0, z0, x1, y1, z1 = Gltf.collect(asset)
     mb:push()
     mb:rotateY(PA.AK_FLIP and math.pi or 0)
-    Gltf.emitPrims(mb, prims, 1, (x0 + x1) / 2, y1 - 0.075, (z0 + z1) / 2)
+    Gltf.emitPrims(mb, prims, 1, (x0 + x1) / 2, y1 - 0.075, (z0 + z1) / 2, keep)
     mb:pop()
     return (x1 - x0) / 2
 end

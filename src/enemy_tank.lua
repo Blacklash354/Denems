@@ -6,97 +6,233 @@ local MB = require("src.engine.meshbuilder")
 local M3 = require("src.engine.math3d")
 local TM = require("src.tank_model")
 
-local WHEEL_R = 0.52
-
 local E = { tanks = {} }
 local G
 
-local function buildModels()
+-- Soviet tanks: a T-34-85 (sloped glacis and sides, five big Christie road wheels, cast turret with a
+-- long 85 mm gun, fuel drums and an unditching log, a hasty winter whitewash and a white tactical
+-- number) and an IS-2 (longer hull, six smaller wheels, a big turret and the 122 mm gun with its
+-- muzzle brake). Hull-local: x forward, y up, z right, origin on the ground under the hull centre.
+E.VARIANTS = {
+    t34 = { len = 1.0, wheelR = 0.41, wheelY = 0.45, wheels = { 1.95, 1.0, 0.05, -0.9, -1.85 }, turretPos = { 0.15, 1.52, 0 },
+            trunnion = { 1.15, 0.38, 0 }, muzzle = 4.85, turretScale = 1.0, hp = 100, speed = 4.2, number = "214" },
+    is2 = { len = 1.1, wheelR = 0.34, wheelY = 0.38, wheels = { 2.3, 1.45, 0.6, -0.25, -1.1, -1.95 }, turretPos = { 0.1, 1.55, 0 },
+            trunnion = { 1.3, 0.45, 0 }, muzzle = 5.3, turretScale = 1.18, hp = 160, speed = 3.4, number = "07", heavy = true },
+}
+
+-- 7-segment style digits made of thin plates on a turret side (z = side face)
+local SEGS = { ["0"] = "abcdef", ["1"] = "bc", ["2"] = "abged", ["3"] = "abgcd", ["4"] = "fgbc", ["5"] = "afgcd",
+               ["6"] = "afgedc", ["7"] = "abc", ["8"] = "abcdefg", ["9"] = "abcdfg" }
+local function number(mb, text, x0, y0, z, w, h)
+    local t = 0.035
+    -- seen from the left (-z) side the tank's nose is on the viewer's left: lay the digits out
+    -- the other way round and mirror each one so the number reads the same on both sides
+    local mirror = z < 0
+    for i = 1, #text do
+        local segs = SEGS[text:sub(i, i)] or ""
+        local col = mirror and (#text - i) or (i - 1)
+        local x = x0 + col * w * 1.45
+        local function X(px) return mirror and (2 * x + w - px) or px end
+        local function seg(name, ax, ay, bx, by)
+            if segs:find(name, 1, true) then
+                ax, bx = X(ax), X(bx)
+                mb:box(math.min(ax, bx) - t, math.min(ay, by) - t, z - 0.012, math.max(ax, bx) + t, math.max(ay, by) + t, z + 0.012)
+            end
+        end
+        seg("a", x, y0 + h, x + w, y0 + h)
+        seg("b", x + w, y0 + h / 2, x + w, y0 + h)
+        seg("c", x + w, y0, x + w, y0 + h / 2)
+        seg("d", x, y0, x + w, y0)
+        seg("e", x, y0, x, y0 + h / 2)
+        seg("f", x, y0 + h / 2, x, y0 + h)
+        seg("g", x, y0 + h / 2, x + w, y0 + h / 2)
+    end
+end
+
+local function buildVariant(v, seed)
     local m = {}
-    local mb = MB.new(401)
-    mb.texScale = 0.5
+    local L = v.len
+    local mb = MB.new(seed)
+    mb.texScale = 0.55
     mb.maxEdge = 1.0
-    -- sloped hull
-    mb:material("tank"):color(0.62, 0.72, 0.55)
-    mb:hexa({ { -3.0, 0.45, -1.35 }, { 2.4, 0.45, -1.35 }, { 2.4, 0.45, 1.35 }, { -3.0, 0.45, 1.35 },
-              { -2.9, 1.65, -1.5 }, { 1.4, 1.65, -1.5 }, { 1.4, 1.65, 1.5 }, { -2.9, 1.65, 1.5 } })
-    mb:hexa({ { 2.4, 0.45, -1.35 }, { 3.1, 0.9, -1.35 }, { 3.1, 0.9, 1.35 }, { 2.4, 0.45, 1.35 },
-              { 1.4, 1.65, -1.5 }, { 1.45, 1.65, -1.5 }, { 1.45, 1.65, 1.5 }, { 1.4, 1.65, 1.5 } })
-    -- tracks and the big road wheels are separate models so they can move (see E.draw)
+    local CAMO = "sovwinter"
+    mb:material(CAMO):color(1, 1, 1)
+    local nose, tail = 3.02 * L, -3.05 * L
+    local glacisTop, deckRear = 1.9 * L, -2.55 * L
+    -- lower hull between the tracks and its sloped nose / tail plates
+    mb:box(tail + 0.1, 0.38, -1.02, nose - 0.27, 1.05, 1.02, { top = false })
+    mb:hexa({ { nose - 0.27, 0.38, -1.02 }, { nose, 0.97, -1.02 }, { nose, 0.97, 1.02 }, { nose - 0.27, 0.38, 1.02 },
+              { nose - 0.27, 1.05, -1.02 }, { nose - 0.02, 1.05, -1.02 }, { nose - 0.02, 1.05, 1.02 }, { nose - 0.27, 1.05, 1.02 } })
+    mb:hexa({ { tail, 1.05, -1.02 }, { tail + 0.1, 0.38, -1.02 }, { tail + 0.1, 0.38, 1.02 }, { tail, 1.05, 1.02 },
+              { tail, 1.07, -1.02 }, { tail + 0.1, 1.07, -1.02 }, { tail + 0.1, 1.07, 1.02 }, { tail, 1.07, 1.02 } })
+    -- upper hull with the sloped sides out over the tracks
+    mb:hexa({ { deckRear, 1.05, -1.5 }, { glacisTop, 1.05, -1.5 }, { glacisTop, 1.05, 1.5 }, { deckRear, 1.05, 1.5 },
+              { deckRear, 1.52, -1.18 }, { glacisTop, 1.52, -1.18 }, { glacisTop, 1.52, 1.18 }, { deckRear, 1.52, 1.18 } })
+    -- the glacis: one long sloped plate down to the nose
+    mb:hexa({ { glacisTop, 1.05, -1.5 }, { nose, 0.97, -1.45 }, { nose, 0.97, 1.45 }, { glacisTop, 1.05, 1.5 },
+              { glacisTop, 1.52, -1.18 }, { nose - 0.02, 1.0, -1.42 }, { nose - 0.02, 1.0, 1.42 }, { glacisTop, 1.52, 1.18 } })
+    -- engine deck sloping down to the rear plate
+    mb:hexa({ { tail, 1.05, -1.5 }, { deckRear, 1.05, -1.5 }, { deckRear, 1.05, 1.5 }, { tail, 1.05, 1.5 },
+              { tail + 0.05, 1.3, -1.18 }, { deckRear, 1.52, -1.18 }, { deckRear, 1.52, 1.18 }, { tail + 0.05, 1.3, 1.18 } })
+    -- fenders over the tracks, front tips bent down
+    for _, sd in ipairs({ -1, 1 }) do
+        local z0, z1 = sd > 0 and 1.0 or -1.56, sd > 0 and 1.56 or -1.0
+        mb:box(tail - 0.05, 1.03, z0, nose + 0.12, 1.07, z1)
+        mb:hexa({ { nose + 0.12, 1.03, z0 }, { nose + 0.35, 0.82, z0 }, { nose + 0.35, 0.82, z1 }, { nose + 0.12, 1.03, z1 },
+                  { nose + 0.12, 1.07, z0 }, { nose + 0.36, 0.86, z0 }, { nose + 0.36, 0.86, z1 }, { nose + 0.12, 1.07, z1 } })
+    end
+    -- driver's hatch and spare track links on the glacis
+    local ga = -math.atan2(1.52 - 0.97, glacisTop - nose)
+    mb:push() mb:translate(glacisTop + 0.55, 1.27, -0.45) mb:rotateZ(ga - math.pi)
+    mb:box(-0.3, 0, -0.27, 0.3, 0.07, 0.27)
+    mb:pop()
+    mb:material("tread"):color(0.75, 0.72, 0.7)
+    for i = 0, 3 do
+        mb:push() mb:translate(nose - 0.3 - i * 0.02, 1.03 + i * 0.01, 0.25 + i * 0.27) mb:rotateZ(ga - math.pi)
+        mb:box(-0.05, 0, -0.12, 0.25, 0.05, 0.12)
+        mb:pop()
+    end
+    -- hull machine gun in its ball and a headlight
+    mb:material("metal"):color(0.3, 0.3, 0.3)
+    mb:sphere(nose - 0.45, 1.24, 0.55, 0.13, 0.13, 0.13, 6, 4)
+    mb:cylinderX(nose - 0.45, nose + 0.05, 1.27, 0.55, 0.025, 0.02, 5)
+    mb:cylinder(nose - 0.15, 1.07, -1.2, 0.09, 1.2, 0.1, 7)
+    mb:material("white"):color(0.9, 0.85, 0.6)
+    mb:cylinderX(nose - 0.06, nose - 0.04, 1.14, -1.2, 0.07, 0.07, 7)
+    -- engine deck grilles and the round transmission hatch
+    mb:material("metal"):color(0.22, 0.22, 0.2)
+    mb:box(deckRear + 0.15, 1.52, -0.75, deckRear + 1.2, 1.56, 0.75)
+    mb:cylinderX(tail - 0.02, tail + 0.03, 0.78, 0, 0.32, 0.32, 10)
+    -- exhaust pipes out of the rear plate
+    for _, z in ipairs({ -0.55, 0.55 }) do mb:cylinderX(tail - 0.22, tail + 0.05, 0.86, z, 0.09, 0.09, 6) end
+    -- external fuel drums on the hull sides
+    mb:material(CAMO):color(0.9, 0.9, 0.88)
+    for _, sd in ipairs({ -1, 1 }) do
+        for _, x0 in ipairs({ -2.35 * L, -1.3 * L }) do mb:cylinderX(x0, x0 + 0.85, 1.36, sd * 1.36, 0.19, 0.19, 8) end
+    end
+    -- unditching log and tow cable
+    mb:material("bark"):color(0.6, 0.5, 0.4)
+    mb:cylinderX(-1.0 * L, 1.6 * L, 1.2, 1.42, 0.12, 0.12, 7)
+    mb:material("metal"):color(0.25, 0.24, 0.22)
+    mb:cylinderX(-2.4 * L, 1.4 * L, 1.1, -1.45, 0.03, 0.03, 4)
+    m.hull = mb:build()
+
+    -- tracks: around the front idler, along the wheel tops, round the rear sprocket and back underneath
     local pts = {}
-    local function arc(cx, a0, a1)
+    local function arc(cx, cy, r, a0, a1)
         for i = 0, 5 do
             local a = a0 + (a1 - a0) * i / 5
-            pts[#pts + 1] = { cx + math.cos(a) * 0.57, 0.57 + math.sin(a) * 0.57 }
+            pts[#pts + 1] = { cx + math.cos(a) * r, cy + math.sin(a) * r }
         end
     end
-    arc(2.5, -math.pi / 2, math.pi / 2)
-    for i = 1, 4 do pts[#pts + 1] = { 2.5 - i * 1.02, 1.14 - math.sin(i / 5 * math.pi) * 0.05 } end
-    arc(-2.6, math.pi / 2, 3 * math.pi / 2)
-    for i = 1, 4 do pts[#pts + 1] = { -2.6 + i * 1.02, 0.0 } end
-    m.trackL = TM.buildBelt(pts, -1.35, -1.62, -1, 405)
-    m.trackR = TM.buildBelt(pts, 1.35, 1.62, 1, 406)
-    m.wheel = TM.buildWheel(WHEEL_R, 0.105, 9)
-    -- exhaust, fuel drums, snow
-    mb:material("metal"):color(0.45, 0.45, 0.42)
-    mb:cylinderX(-3.3, -3.0, 1.2, -0.6, 0.1, 0.1, 6)
-    mb:cylinderX(-3.3, -3.0, 1.2, 0.6, 0.1, 0.1, 6)
-    mb:material("rust"):color(0.6, 0.55, 0.5)
-    mb:cylinderX(-2.9, -2.0, 1.85, -1.6, 0.25, 0.25, 7)
-    mb:cylinderX(-2.9, -2.0, 1.85, 1.6, 0.25, 0.25, 7)
-    mb:material("snow"):color(0.95, 0.97, 1)
-    mb:box(-2.6, 1.65, -1.3, -1.2, 1.7, 1.3)
-    m.hull = mb:build()
-    mb = MB.new(402)
-    mb.texScale = 0.5
-    mb:material("tank"):color(0.6, 0.7, 0.53)
-    -- cast rounded turret
-    mb:cylinder(0, 0, 0, 1.35, 0.85, 1.05, 10)
-    mb:hexa({ { -2.1, 0.1, -0.8 }, { -1.1, 0.0, -1.0 }, { -1.1, 0.0, 1.0 }, { -2.1, 0.1, 0.8 },
-              { -2.0, 0.75, -0.7 }, { -1.0, 0.8, -0.9 }, { -1.0, 0.8, 0.9 }, { -2.0, 0.75, 0.7 } })
-    mb:cylinder(-0.4, 0.85, -0.5, 0.35, 1.05, 0.33, 8)
-    -- red star
-    mb:material("star"):color(1, 1, 1)
-    mb:quad(-0.4, 0.2, 1.33, 0.3, 0.2, 1.33, 0.3, 0.75, 1.15, -0.4, 0.75, 1.15)
-    mb:quad(0.3, 0.2, -1.33, -0.4, 0.2, -1.33, -0.4, 0.75, -1.15, 0.3, 0.75, -1.15)
-    -- searchlight
-    mb:material("metal"):color(0.4, 0.4, 0.4)
-    mb:cylinderX(0.5, 0.8, 0.95, 0.8, 0.12, 0.14, 7)
-    mb:material("snow"):color(0.95, 0.97, 1)
-    mb:cylinder(-0.6, 0.85, 0.3, 0.6, 0.88, 0.5, 8)
+    local idlerX, sprX = nose - 0.3, tail + 0.3
+    local top = v.wheelY + v.wheelR + 0.04
+    arc(idlerX, 0.5, 0.45, -math.pi / 2, math.pi / 2)
+    for i = 1, #v.wheels do
+        local wx = v.wheels[i]
+        pts[#pts + 1] = { wx + 0.25, top - (v.heavy and 0 or 0.03) + (v.heavy and 0.08 or 0) }
+        pts[#pts + 1] = { wx, top + (v.heavy and 0.08 or 0) }
+    end
+    arc(sprX, 0.5, 0.45, math.pi / 2, 3 * math.pi / 2)
+    for i = #v.wheels, 1, -1 do pts[#pts + 1] = { v.wheels[i], 0.04 } end
+    m.trackL = TM.buildBelt(pts, -1.0, -1.5, -1, seed + 5)
+    m.trackR = TM.buildBelt(pts, 1.0, 1.5, 1, seed + 6)
+    m.wheel = TM.buildWheel(v.wheelR, 0.13, 10)
+    m.sprocket = TM.buildSprocket()
+    m.lyingTrack = TM.buildLyingTrack(0.5, 7.5, seed + 7)
+    m.idlerX, m.sprX = idlerX, sprX
+
+    -- turret (turret-local, origin on the hull roof at the ring centre)
+    mb = MB.new(seed + 1)
+    mb.texScale = 0.55
+    mb:push() mb:scale(v.turretScale, v.turretScale, v.turretScale)
+    mb:material(CAMO):color(1, 1, 1)
+    mb:hexa({ { -1.35, 0, -1.12 }, { 1.05, 0, -1.18 }, { 1.05, 0, 1.18 }, { -1.35, 0, 1.12 },
+              { -1.2, 0.7, -0.92 }, { 0.75, 0.7, -0.98 }, { 0.75, 0.7, 0.98 }, { -1.2, 0.7, 0.92 } })
+    mb:hexa({ { 1.05, 0.04, -1.1 }, { 1.32, 0.15, -0.78 }, { 1.32, 0.15, 0.78 }, { 1.05, 0.04, 1.1 },
+              { 0.75, 0.7, -0.98 }, { 1.15, 0.6, -0.68 }, { 1.15, 0.6, 0.68 }, { 0.75, 0.7, 0.98 } })
+    mb:hexa({ { -1.85, 0.12, -0.85 }, { -1.35, 0.04, -1.1 }, { -1.35, 0.04, 1.1 }, { -1.85, 0.12, 0.85 },
+              { -1.75, 0.62, -0.72 }, { -1.2, 0.7, -0.92 }, { -1.2, 0.7, 0.92 }, { -1.75, 0.62, 0.72 } })
+    -- commander's cupola with its vision blocks, the loader's hatch and two ventilator domes
+    mb:cylinder(-0.7, 0.7, -0.45, 0.36, 0.95, 0.33, 10)
+    mb:cylinder(-0.7, 0.95, -0.45, 0.3, 1.0, 0.24, 10)
+    mb:material("metal"):color(0.12, 0.13, 0.14)
+    for i = 0, 4 do
+        local a = i / 5 * 2 * math.pi + 0.3
+        mb:boxC(-0.7 + math.cos(a) * 0.35, 0.86, -0.45 + math.sin(a) * 0.35, 0.06, 0.05, 0.08)
+    end
+    mb:material(CAMO):color(0.95, 0.95, 0.93)
+    mb:cylinder(-0.55, 0.7, 0.45, 0.3, 0.76, 0.3, 9)
+    mb:sphere(-1.45, 0.62, -0.3, 0.13, 0.08, 0.13, 6, 3)
+    mb:sphere(-1.45, 0.62, 0.3, 0.13, 0.08, 0.13, 6, 3)
+    -- grab rails
+    mb:material("metal"):color(0.28, 0.28, 0.26)
+    mb:box(-1.2, 0.42, -1.07, 0.4, 0.46, -1.03)
+    mb:box(-1.2, 0.42, 1.03, 0.4, 0.46, 1.07)
+    -- white tactical number on both sides
+    mb:material("white"):color(0.88, 0.88, 0.85)
+    number(mb, v.number, -1.05, 0.2, -1.07, 0.16, 0.26)
+    number(mb, v.number, -1.05, 0.2, 1.07, 0.16, 0.26)
+    mb:pop()
     m.turret = mb:build()
-    mb = MB.new(403)
-    mb:material("tank"):color(0.6, 0.7, 0.53)
-    mb:box(-0.1, -0.3, -0.45, 0.45, 0.3, 0.45)
-    mb:cylinderX(0.45, 5.2, 0, 0, 0.1, 0.085, 8)
-    mb:material("metal"):color(0.4, 0.4, 0.38)
-    mb:cylinderX(5.0, 5.35, 0, 0, 0.12, 0.12, 8)
+
+    -- gun with its mantlet (gun-local, origin at the trunnions)
+    mb = MB.new(seed + 2)
+    mb.texScale = 0.55
+    local k = v.turretScale
+    mb:material(CAMO):color(1, 1, 1)
+    mb:box(-0.15 * k, -0.26 * k, -0.45 * k, 0.22 * k, 0.26 * k, 0.45 * k)
+    mb:cylinderZ(-0.42 * k, 0.42 * k, 0.22 * k, 0, 0.22 * k, 8)
+    mb:box(0.3 * k, -0.14, -0.14, 0.55 * k, 0.14, 0.14)
+    local r0 = v.heavy and 0.115 or 0.09
+    mb:cylinderX(0.5 * k, v.muzzle - 0.2, 0, 0, r0, r0 * 0.82, 8)
+    mb:material("metal"):color(0.3, 0.3, 0.28)
+    if v.heavy then
+        -- double-baffle muzzle brake
+        mb:cylinderX(v.muzzle - 0.25, v.muzzle - 0.1, 0, 0, 0.12, 0.12, 8)
+        mb:box(v.muzzle - 0.32, -0.13, -0.2, v.muzzle - 0.24, 0.13, 0.2)
+        mb:box(v.muzzle - 0.14, -0.13, -0.2, v.muzzle - 0.06, 0.13, 0.2)
+        mb:cylinderX(v.muzzle - 0.06, v.muzzle, 0, 0, 0.12, 0.12, 8)
+    else
+        mb:cylinderX(v.muzzle - 0.25, v.muzzle, 0, 0, r0 * 0.95, r0 * 0.95, 8)
+    end
     m.gun = mb:build()
-    mb = MB.new(404)
+    -- searchlight lens on the mantlet (drawn bright while the crew is alive)
+    mb = MB.new(seed + 3)
     mb:material("white"):color(1.0, 0.85, 0.6)
-    mb:cylinderX(0.8, 0.82, 0.95, 0.8, 0.11, 0.11, 7)
+    mb:cylinderX(1.24 * v.turretScale, 1.26 * v.turretScale, 0.48, -0.72, 0.08, 0.08, 7)
     m.light = mb:build()
     return m
 end
 
+local function buildModels()
+    return { t34 = buildVariant(E.VARIANTS.t34, 401), is2 = buildVariant(E.VARIANTS.is2, 451) }
+end
+
 local function newTank(def)
     local W = G.world
-    local t = { name = def.name, route = def.route, wp = 2, x = def.route[1][1], z = def.route[1][2], yaw = 0,
-                hp = 100, state = "patrol", turretYaw = 0, gunPitch = 0, reload = 3, aimT = 0, speed = 0, timer = 0,
-                alive = true, spotted = false, burnT = 0, mgCool = 0, searchT = 0, id = def.id }
-    t.y = W.height(t.x, t.z)
+    local kind = def.kind or "t34"
+    local v = E.VARIANTS[kind]
+    local t = { name = def.name, route = def.route, wp = 2, x = def.route[1][1], z = def.route[1][2], yaw = 0, kind = kind, v = v,
+                models = E.models[kind], hp = v.hp, trackL = 60, trackR = 60, state = "patrol", turretYaw = 0, gunPitch = 0,
+                reload = 3, aimT = 0, speed = 0, timer = 0, alive = true, spotted = false, burnT = 0, mgCool = 0, searchT = 0,
+                id = def.id, lying = {} }
+    t.y = W.groundHeight(t.x, t.z)
     t.frame = M3.frame()
     t.turretFrame = M3.frame()
     t.gunFrame = M3.frame()
+    local L, k = v.len, v.turretScale
     t.set = { frame = t.frame, boxes = {
-        { -3.2, 0.0, -1.62, 3.1, 1.65, 1.62, walk = true, enemy = t },
+        { -3.15 * L, 0.0, -1.56, 3.1 * L, 1.52, 1.56, walk = true, enemy = t },
     } }
-    t.turretSet = { frame = t.turretFrame, boxes = { { -2.1, 0, -1.3, 1.3, 1.05, 1.3, walk = true, enemy = t } } }
-    t.mats = { {}, {}, {}, {} }
+    t.turretSet = { frame = t.turretFrame, boxes = { { -1.85 * k, 0, -1.18 * k, 1.32 * k, 1.0 * k, 1.18 * k, walk = true, enemy = t } } }
+    t.mats = { {}, {}, {}, {}, {}, {}, {}, {} }
     t.trackOffL, t.trackOffR, t.wheelAngL, t.wheelAngR = 0, 0, 0, 0
     t.wheels = {}
     for _, s in ipairs({ -1, 1 }) do
-        for i = 0, 4 do t.wheels[#t.wheels + 1] = { x = -2.4 + i * 1.2, z = s * 1.485, side = s, mat = {} } end
+        for _, wx in ipairs(v.wheels) do t.wheels[#t.wheels + 1] = { x = wx, y = v.wheelY, z = s * 1.25, side = s, mat = {} } end
+        t.wheels[#t.wheels + 1] = { x = t.models.idlerX, y = 0.5, z = s * 1.25, side = s, mat = {}, idler = true }
+        t.wheels[#t.wheels + 1] = { x = t.models.sprX, y = 0.5, z = s * 1.25, side = s, mat = {}, sprocket = true }
     end
     t.nx, t.ny, t.nz = 0, 1, 0
     return t
@@ -105,9 +241,16 @@ end
 function E.init(game)
     G = game
     E.models = buildModels()
+    local W = G.world
+    local A, Pn = W.airfield, W.plant
     E.defs = {
-        { id = 1, name = "T-34 PATROL", route = { { -150, -40 }, { -205, -200 }, { -250, -320 }, { -205, -200 }, { -100, -60 }, { -10, -70 } } },
-        { id = 2, name = "PLANT GUARD", route = { { 60, -420 }, { 130, -432 }, { 205, -410 }, { 150, -380 }, { 70, -390 } } },
+        { id = 1, name = "T-34 PATROL", route = { { -190, -500 }, { -500, -600 }, { -850, -700 }, { -1040, -742 }, { -850, -700 }, { -500, -600 } } },
+        { id = 2, name = "PLANT GUARD", kind = "is2", route = { { Pn.x - 40, Pn.z + 115 }, { Pn.x + 60, Pn.z + 110 }, { Pn.x + 120, Pn.z + 60 }, { Pn.x + 60, Pn.z + 110 } } },
+        { id = 3, name = "AIRFIELD ARMOUR", route = { { A.x - 200, A.z + 70 }, { A.x + 200, A.z + 70 }, { A.x + 120, A.z + 20 }, { A.x - 120, A.z + 20 } } },
+        { id = 4, name = "AIRFIELD ARMOUR", route = { { A.x + 150, A.z - 60 }, { A.x - 150, A.z - 60 }, { A.x - 220, A.z + 10 }, { A.x + 220, A.z + 10 } } },
+        { id = 5, name = "BASE T-34", route = { { -1040, -742 }, { -1160, -650 }, { -1260, -760 }, { -1160, -860 } } },
+        { id = 6, name = "TOWN ROAD T-34", route = { { -1160, 320 }, { -960, 500 }, { -720, 560 }, { -960, 500 } } },
+        { id = 7, name = "TOWER IS-2", kind = "is2", route = { { 700, -350 }, { 760, -700 }, { 780, -1080 }, { 760, -700 } } },
     }
     E.reset()
 end
@@ -116,23 +259,31 @@ function E.reset(saved)
     E.tanks = {}
     for i, d in ipairs(E.defs) do
         local t = newTank(d)
+        if saved and saved[i] then
+            t.trackL, t.trackR = saved[i].trackL or t.trackL, saved[i].trackR or t.trackR
+            if saved[i].x and not saved[i].dead then t.x, t.z, t.yaw = saved[i].x, saved[i].z, saved[i].yaw or 0 t.y = G.world.groundHeight(t.x, t.z) end
+        end
         if saved and saved[i] and saved[i].dead then
             t.alive = false
             t.state = "dead"
             t.x, t.z, t.yaw = saved[i].x, saved[i].z, saved[i].yaw
-            t.y = G.world.height(t.x, t.z)
+            t.y = G.world.groundHeight(t.x, t.z)
             t.burnT = 999
             t.turretOff = true
             t.looted = saved[i].looted
         end
         E.tanks[#E.tanks + 1] = t
         E.updateFrames(t)
+        if t.trackL <= 0 then E.throwTrack(t, -1, true) end
+        if t.trackR <= 0 then E.throwTrack(t, 1, true) end
     end
 end
 
 function E.serialize()
     local out = {}
-    for i, t in ipairs(E.tanks) do out[i] = { dead = not t.alive, x = t.x, z = t.z, yaw = t.yaw, looted = t.looted } end
+    for i, t in ipairs(E.tanks) do
+        out[i] = { dead = not t.alive, x = t.x, z = t.z, yaw = t.yaw, looted = t.looted, trackL = t.trackL, trackR = t.trackR }
+    end
     return out
 end
 
@@ -141,7 +292,8 @@ function E.updateFrames(t)
     t.frame.px, t.frame.py, t.frame.pz = t.x, t.y, t.z
     local tl = M3.frame()
     tl:setYaw(t.turretYaw)
-    tl.px, tl.py, tl.pz = -0.2, 1.65, 0
+    local tp = t.v.turretPos
+    tl.px, tl.py, tl.pz = tp[1], tp[2], tp[3]
     if t.turretOff and t.turretFly then
         t.turretFrame:setYawPitchRoll(t.turretFly.yaw, t.turretFly.pitch, t.turretFly.roll)
         t.turretFrame.px, t.turretFrame.py, t.turretFrame.pz = t.turretFly.x, t.turretFly.y, t.turretFly.z
@@ -150,7 +302,8 @@ function E.updateFrames(t)
     end
     local gl = M3.frame()
     gl:setYawPitchRoll(0, t.gunPitch, 0)
-    gl.px, gl.py, gl.pz = 1.15, 0.5, 0
+    local tr = t.v.trunnion
+    gl.px, gl.py, gl.pz = tr[1], tr[2], tr[3]
     t.turretFrame:compose(gl, t.gunFrame)
 end
 
@@ -208,6 +361,9 @@ end
 
 local function driveTo(t, x, z, speed, dt)
     local W = G.world
+    -- a thrown track: going nowhere, the turret still turns
+    if t.trackL <= 0 or t.trackR <= 0 then t.speed = U.approach(t.speed, 0, dt * 4) return false end
+    speed = speed * t.v.speed / 4.2
     local want = math.atan2(z - t.z, x - t.x)
     local diff = U.angleTo(t.yaw, want)
     t.yaw = t.yaw + U.clamp(diff, -0.4 * dt, 0.4 * dt)
@@ -219,7 +375,19 @@ local function driveTo(t, x, z, speed, dt)
         local px, pz, hit = P.circlePush({ W.staticSet }, nx + c * off, t.y, nz + s * off, 1.9, 0.7, 3.0)
         if hit then nx, nz = nx + px, nz + pz t.speed = t.speed * 0.8 end
     end
+    -- prints in the snow, like ours (only where someone might see them: the decal ring is shared)
+    t.markAcc = (t.markAcc or 0) + U.dist2(t.x, t.z, nx, nz)
     t.x, t.z = nx, nz
+    if t.markAcc > 0.7 then
+        t.markAcc = 0
+        local cam = G.camera
+        if math.abs(cam.x - t.x) < 250 and math.abs(cam.z - t.z) < 250 then
+            local depth = G.snow and G.snow.depth(t.x, t.z) or 0.3
+            for _, side in ipairs({ -1.15, 1.15 }) do
+                G.effects.trackMark(t.x - c * 2.2 - s * side, t.z - s * 2.2 + c * side, t.yaw, depth)
+            end
+        end
+    end
     return U.dist2(t.x, t.z, x, z) < 6
 end
 
@@ -339,7 +507,7 @@ local function updateTank(t, dt)
     local c, s = math.cos(t.yaw), math.sin(t.yaw)
     local hs = {}
     for i, o in ipairs({ { 2.6, -1.4 }, { 2.6, 1.4 }, { -2.8, -1.4 }, { -2.8, 1.4 } }) do
-        hs[i] = W.height(t.x + c * o[1] - s * o[2], t.z + s * o[1] + c * o[2])
+        hs[i] = W.groundHeight(t.x + c * o[1] - s * o[2], t.z + s * o[1] + c * o[2])
     end
     local dp, dr = ((hs[1] + hs[2]) - (hs[3] + hs[4])) / 2 / 5.4, ((hs[2] + hs[4]) - (hs[1] + hs[3])) / 2 / 2.8
     local fx, fy, fz = U.norm3(c, dp, s)
@@ -358,15 +526,15 @@ local function updateTank(t, dt)
     local vL, vR = t.speed + yawRate * 1.5, t.speed - yawRate * 1.5
     t.trackOffL = (t.trackOffL - vL * dt * TM.TRACK_UV) % 1000
     t.trackOffR = (t.trackOffR - vR * dt * TM.TRACK_UV) % 1000
-    t.wheelAngL = (t.wheelAngL - vL * dt / WHEEL_R) % (2 * math.pi)
-    t.wheelAngR = (t.wheelAngR - vR * dt / WHEEL_R) % (2 * math.pi)
+    t.wheelAngL = (t.wheelAngL - vL * dt / t.v.wheelR) % (2 * math.pi)
+    t.wheelAngR = (t.wheelAngR - vR * dt / t.v.wheelR) % (2 * math.pi)
     E.updateFrames(t)
 end
 
 function E.fire(t)
     t.reload = 8 + math.random() * 3
     local gf = t.gunFrame
-    local mx, my, mz = gf:toWorld(5.4, 0, 0)
+    local mx, my, mz = gf:toWorld(t.v.muzzle + 0.05, 0, 0)
     local err = math.max(0.004, 0.02 - t.aimT * 0.004)
     local dx, dy, dz = U.norm3(gf.fx + (math.random() - 0.5) * err, gf.fy + (math.random() - 0.5) * err, gf.fz + (math.random() - 0.5) * err)
     local kind = (t.target and t.target.kind == "player") and "HE" or "AP"
@@ -387,7 +555,7 @@ function E.update(dt)
             local dx, dy, dz, l = U.norm3(t.x - cam.x, t.y + 1.5 - cam.y, t.z - cam.z)
             if dx * cam.fx + dy * cam.fy + dz * cam.fz > 0.8 and not G.world.rayTerrain(cam.x, cam.y, cam.z, dx, dy, dz, l - 3) then
                 t.spotted = true
-                if G.ui then G.ui.warning("ENEMY ARMOR SPOTTED") end
+                if G.ui then G.ui.notify("ENEMY ARMOUR") end
                 if G.audio then G.audio.play("sting", {}) end
                 if G.missions then G.missions.event("enemy_spotted", t) end
             end
@@ -409,9 +577,33 @@ function E.raycast(ox, oy, oz, dx, dy, dz, maxT)
     if best then return bestT, best, nx, ny, nz end
 end
 
+-- a track shot off: the tank sits where it is, the belt lies beside it
+local function throwTrack(t, side, quiet)
+    local f = t.frame
+    local x, y, z = f:toWorld(t.models.idlerX + 0.3, 0, side * 2.2)
+    t.lying[#t.lying + 1] = { side = side, x = x, y = G.world.groundHeight(x, z), z = z, yaw = t.yaw + side * 0.06, mat = {} }
+    if quiet then return end
+    for k = 0, 3 do
+        local px, py, pz = f:toWorld(1.8 - k * 1.3, 0.5, side * 1.3)
+        G.effects.debris(px, py, pz, "metal", 2, 3.5, 0.16)
+    end
+    if G.audio then G.audio.play("track_snap", { x = x, y = y + 0.5, z = z, big = true }) end
+    if G.ui then G.ui.notify("TRACK HIT - " .. (t.v.heavy and "IS-2" or "T-34") .. " IMMOBILISED") end
+end
+
+E.throwTrack = throwTrack
+
 function E.hit(t, dmg, x, y, z, dx, dz, kind)
     if not t.alive then return end
     local lx, ly, lz = t.frame:toLocal(x, y, z)
+    -- running gear: a hit low on the side tears the track off
+    if ly < 1.05 and math.abs(lz) > 0.95 then
+        local key = lz > 0 and "trackR" or "trackL"
+        local before = t[key]
+        t[key] = math.max(0, t[key] - dmg * 1.1)
+        if before > 0 and t[key] <= 0 then throwTrack(t, lz > 0 and 1 or -1) end
+        dmg = dmg * 0.35
+    end
     local mult = 1
     if lx > 1.8 and ly < 1.7 then mult = 0.55 end           -- sloped glacis
     if lx < -2.2 then mult = 1.5 end                         -- rear
@@ -445,7 +637,7 @@ function E.destroy(t)
     G.effects.explosion(t.x, t.y + 1.5, t.z, 2.5)
     G.effects.explosion(t.x, t.y + 2.5, t.z, 1.5)
     if G.audio then G.audio.play("explosion", { x = t.x, y = t.y, z = t.z, big = true }) end
-    if G.ui then G.ui.warning("ENEMY TANK DESTROYED") end
+    if G.ui then G.ui.notify("ENEMY TANK DESTROYED") end
     if G.missions then G.missions.event("enemy_destroyed", t) end
     G.world.fires[#G.world.fires + 1] = { x = t.x, y = t.y + 1.5, z = t.z, r = 6 }
 end
@@ -467,21 +659,34 @@ local wheelLocal, wheelWorld = M3.frame(), M3.frame()
 function E.draw()
     for _, t in ipairs(E.tanks) do
         if R.visible(t.x, t.y + 1.5, t.z, 7) then
+            local m = t.models
             local tint = (not t.alive) and { 0.22, 0.2, 0.18, 1 } or nil
             local p = tint and { tint = tint } or nil
             local hullM = t.frame:matrix(t.mats[1])
-            R.drawModel(E.models.hull, hullM, p)
-            R.drawModel(E.models.trackL, hullM, { uv = { t.trackOffL, 0 }, tint = tint })
-            R.drawModel(E.models.trackR, hullM, { uv = { t.trackOffR, 0 }, tint = tint })
+            R.drawModel(m.hull, hullM, p)
+            if t.trackL > 0 then R.drawModel(m.trackL, hullM, { uv = { t.trackOffL, 0 }, tint = tint }) end
+            if t.trackR > 0 then R.drawModel(m.trackR, hullM, { uv = { t.trackOffR, 0 }, tint = tint }) end
             for _, w in ipairs(t.wheels) do
-                wheelLocal:setYawPitchRoll(0, (w.side < 0 and t.wheelAngL or t.wheelAngR) + w.x * 1.3, 0)
-                wheelLocal.px, wheelLocal.py, wheelLocal.pz = w.x, 0.55, w.z
+                local ang = (w.side < 0 and t.wheelAngL or t.wheelAngR)
+                wheelLocal:setYawPitchRoll(0, ang * (w.sprocket and 1.1 or 1) + w.x * 1.3, 0)
+                wheelLocal.px, wheelLocal.py, wheelLocal.pz = w.x, w.y, w.z
                 t.frame:compose(wheelLocal, wheelWorld)
-                R.drawModel(E.models.wheel, wheelWorld:matrix(w.mat), p)
+                R.drawModel(w.sprocket and m.sprocket or m.wheel, wheelWorld:matrix(w.mat), p)
             end
-            R.drawModel(E.models.turret, t.turretFrame:matrix(t.mats[2]), p)
-            R.drawModel(E.models.gun, t.gunFrame:matrix(t.mats[3]), p)
-            if t.alive then R.drawModel(E.models.light, t.turretFrame:matrix(t.mats[4]), { emissive = 1 }) end
+            R.drawModel(m.turret, t.turretFrame:matrix(t.mats[2]), p)
+            R.drawModel(m.gun, t.gunFrame:matrix(t.mats[3]), p)
+            if t.alive then R.drawModel(m.light, t.turretFrame:matrix(t.mats[4]), { emissive = 1 }) end
+        end
+        for _, l in ipairs(t.lying) do
+            if R.visible(l.x, l.y, l.z, 6) then
+                local c, s = math.cos(l.yaw), math.sin(l.yaw)
+                local mm = l.mat
+                mm[1], mm[2], mm[3], mm[4] = c, 0, -s, l.x
+                mm[5], mm[6], mm[7], mm[8] = 0, 1, 0, l.y
+                mm[9], mm[10], mm[11], mm[12] = s, 0, c, l.z
+                mm[13], mm[14], mm[15], mm[16] = 0, 0, 0, 1
+                R.drawModel(t.models.lyingTrack, mm)
+            end
         end
     end
 end

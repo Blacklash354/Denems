@@ -8,6 +8,7 @@ local PA = require("src.psx_assets")
 local Obj = require("src.engine.obj")
 local Textures = require("src.engine.textures")
 local M3 = require("src.engine.math3d")
+local VM = require("src.viewmodel")
 
 local Wp = {}
 local G
@@ -17,41 +18,18 @@ local G
 Wp.DEFS = {
     rifle = { name = "KARABINER 98K", ammo = "rifle_ammo", mag = 5, damage = 85, interval = 1.05, reload = 2.8, spread = 0.0015,
               hipSpread = 0.02, noise = 130, kick = 0.055, sound = "rifle", fov = 42, auto = false, bolt = true,
-              hip = { 0.15, -0.155, 0.36 }, ads = { 0.0, -0.064, 0.21 }, casing = 0.35 },
+              hip = { 0.13, -0.1, 0.42 }, ads = { 0.0, -0.064, 0.21 }, casing = 0.35 },
     smg = { name = "PPSH-41", ammo = "pistol_ammo", mag = 71, damage = 19, interval = 60 / 900, reload = 3.0, spread = 0.009,
             hipSpread = 0.035, noise = 110, kick = 0.012, sound = "smg", fov = 58, auto = true,
-            hip = { 0.14, -0.15, 0.32 }, ads = { 0.0, -0.074, 0.25 }, casing = 0 },
+            hip = { 0.13, -0.11, 0.46 }, ads = { 0.0, -0.074, 0.25 }, casing = 0 },
     pistol = { name = "TT-33 PISTOL", ammo = "pistol_ammo", mag = 8, damage = 32, interval = 0.18, reload = 1.6, spread = 0.006,
                hipSpread = 0.02, noise = 80, kick = 0.03, sound = "pistol", fov = 62, auto = false,
-               hip = { 0.13, -0.15, 0.3 }, ads = { 0.0, -0.098, 0.3 }, casing = 0 },
-    shotgun = { name = "PUMP SHOTGUN", ammo = "shotgun_ammo", mag = 6, damage = 15, pellets = 9, interval = 0.95, reload = 2.6,
+               hip = { 0.11, -0.095, 0.46 }, ads = { 0.0, -0.098, 0.36 }, casing = 0 },
+    shotgun = { name = "PUMP SHOTGUN", ammo = "shotgun_ammo", mag = 6, damage = 15, pellets = 9, interval = 0.95, reload = 2.6, shellTime = 0.62,
                 spread = 0.03, hipSpread = 0.045, noise = 140, kick = 0.075, sound = "rifle", fov = 60, auto = false, pump = true,
-                hip = { 0.15, -0.16, 0.3 }, ads = { 0.0, -0.066, 0.26 }, casing = 0, range = 60 },
+                hip = { 0.13, -0.11, 0.52 }, ads = { 0.0, -0.066, 0.3 }, casing = 0, range = 60 },
 }
 Wp.ORDER = { "rifle", "smg", "pistol", "shotgun" }
-
--- shared arm geometry (sleeve + glove) from a shoulder point to a hand point
-local function arm(mb, sx, sy, sz, hx, hy, hz, thick)
-    local function beam(ax, ay, az, bx, by, bz, t, mat, r, g, b)
-        mb:material(mat):color(r, g, b)
-        local dx, dy, dz = bx - ax, by - ay, bz - az
-        local l = math.sqrt(dx * dx + dy * dy + dz * dz)
-        dx, dy, dz = dx / l, dy / l, dz / l
-        local px, py, pz = U.norm3(U.cross(dx, dy, dz, 0, 1, 0))
-        if px ~= px or (px == 0 and py == 0 and pz == 0) then px, py, pz = 0, 0, 1 end
-        local qx, qy, qz = U.cross(px, py, pz, dx, dy, dz)
-        local function c(x, y, z, s1, s2) return { x + px * s1 + qx * s2, y + py * s1 + qy * s2, z + pz * s1 + qz * s2 } end
-        local h = t / 2
-        mb:hexa({ c(ax, ay, az, -h, -h), c(ax, ay, az, h, -h), c(ax, ay, az, h, h), c(ax, ay, az, -h, h),
-                  c(bx, by, bz, -h * 0.85, -h * 0.85), c(bx, by, bz, h * 0.85, -h * 0.85), c(bx, by, bz, h * 0.85, h * 0.85), c(bx, by, bz, -h * 0.85, h * 0.85) })
-    end
-    -- sleeve to the wrist, then the glove
-    local wx, wy, wz = U.lerp(sx, hx, 0.82), U.lerp(sy, hy, 0.82), U.lerp(sz, hz, 0.82)
-    beam(sx, sy, sz, wx, wy, wz, thick, "cloth", 0.5, 0.48, 0.4)
-    beam(wx, wy, wz, hx, hy, hz, thick * 0.7, "fur", 0.32, 0.28, 0.24)
-    mb:material("fur"):color(0.3, 0.26, 0.22)
-    mb:boxC(hx, hy, hz, thick * 0.9, thick * 0.75, thick * 0.9)
-end
 
 local function buildRifle()
     local p = {}
@@ -80,9 +58,6 @@ local function buildRifle()
     mb:box(-0.22, -0.06, -0.008, -0.12, -0.045, 0.008)     -- trigger guard
     mb:material("metal"):color(0.2, 0.2, 0.2)
     mb:box(-0.18, -0.045, -0.003, -0.165, -0.015, 0.003)   -- trigger
-    -- arms holding the rifle
-    arm(mb, -0.35, -0.22, 0.2, -0.24, -0.04, 0.0, 0.07)      -- right hand on the grip
-    arm(mb, -0.15, -0.3, -0.22, 0.16, -0.05, -0.012, 0.065)  -- left hand under the fore stock
     p.body = mb:build()
     mb = MB.new(202)
     mb:material("steel"):color(0.5, 0.5, 0.52)
@@ -124,8 +99,6 @@ local function buildSMG()
     mb:box(0.235, 0.05, -0.006, 0.26, 0.062, 0.006)        -- front sight base
     mb:box(0.24, 0.062, -0.0018, 0.255, 0.076, 0.0018)     -- front post
     mb:box(-0.27, -0.05, -0.008, -0.17, -0.035, 0.008)     -- trigger guard
-    arm(mb, -0.36, -0.22, 0.2, -0.26, -0.03, 0.0, 0.07)
-    arm(mb, -0.2, -0.3, -0.24, -0.04, -0.12, -0.04, 0.065) -- left hand on the drum
     p.body = mb:build()
     mb = MB.new(212)
     mb:material("metal"):color(0.3, 0.3, 0.31)
@@ -154,8 +127,6 @@ local function buildPistol()
               { -0.06, 0.0, -0.015 }, { -0.005, 0.0, -0.015 }, { -0.005, 0.0, 0.015 }, { -0.06, 0.0, 0.015 } })
     mb:material("metal"):color(0.25, 0.25, 0.25)
     mb:box(-0.02, -0.03, -0.006, 0.02, -0.02, 0.006)
-    arm(mb, -0.3, -0.25, 0.16, -0.05, -0.06, 0.0, 0.07)
-    arm(mb, -0.25, -0.3, -0.14, -0.045, -0.075, -0.02, 0.065)
     p.body = mb:build()
     mb = MB.new(222)
     mb:material("steel"):color(0.45, 0.45, 0.47)
@@ -172,15 +143,13 @@ local function buildPistol()
     return p
 end
 
--- imported PSX firearm (parts animated by the model's own clips) plus the player's arms
-local function buildImported(name, hands, muzzle, seed)
-    local mb = MB.new(seed)
-    for _, h in ipairs(hands) do arm(mb, h[1], h[2], h[3], h[4], h[5], h[6], h[7]) end
-    return { gltf = PA.model("firearms", name), arms = mb:build(), muzzle = muzzle }
+-- imported PSX firearm (parts animated by the model's own clips)
+local function buildImported(name, muzzle)
+    return { gltf = PA.model("firearms", name), muzzle = muzzle }
 end
 
 -- gun from the .obj pack: body / moving slide / magazine as separate models, like the procedural guns
-local function buildObjGun(file, texture, scale, origin, parts, hands, muzzle, seed)
+local function buildObjGun(file, texture, scale, origin, parts, muzzle, seed)
     local tex = "gun_" .. file:match("([^/]+)%.obj$")
     Textures.loadFile(tex, PA.GUNS .. texture)
     local objects = Obj.load(PA.GUNS .. file)
@@ -189,19 +158,21 @@ local function buildObjGun(file, texture, scale, origin, parts, hands, muzzle, s
         local mb = MB.new(seed + i)
         mb:material(tex):color(1, 1, 1)
         Obj.emit(mb, objects, parts[key], scale, origin[1], origin[2], origin[3])
-        if key == "body" then for _, h in ipairs(hands) do arm(mb, h[1], h[2], h[3], h[4], h[5], h[6], h[7]) end end
         out[key] = mb:build()
     end
     return out
 end
 
+-- the AK is one mesh: the curved magazine is cut out of it so the hands can swap it
+local function inAKMag(x, y, z) return x > -0.045 and x < 0.125 and y < -0.018 end
 local function buildAK()
     local mb = MB.new(241)
     mb:color(1, 1, 1)
-    local half = PA.emitAK(mb)
-    arm(mb, -0.45, -0.3, 0.14, -0.1, -0.075, 0.004, 0.06)
-    arm(mb, -0.2, -0.38, -0.2, 0.17, -0.05, -0.008, 0.058)
-    return { body = mb:build(), muzzle = { half, 0.03, 0 } }
+    local half = PA.emitAK(mb, function(x, y, z) return not inAKMag(x, y, z) end)
+    local mm = MB.new(242)
+    mm:color(1, 1, 1)
+    PA.emitAK(mm, inAKMag)
+    return { body = mb:build(), mag = mm:build(), muzzle = { half, 0.03, 0 } }
 end
 
 function Wp.init(game)
@@ -212,14 +183,14 @@ function Wp.init(game)
     if PA.has(PA.GUNS .. "tactical rifle/tactical_Rifle.obj") then
         Wp.packRifle = buildObjGun("tactical rifle/tactical_Rifle.obj", "tactical rifle/Textures/Tac_M14_Text.png", 0.098, { 0, 1.65, -0.02 },
             { body = { "Tac_M14_Body", "Tac_M14_Trigger" }, bolt = { "Tac_M14_Slide" }, mag = { "Tac_M14_Magazene" } },
-            { { -0.45, -0.3, 0.14, -0.06, -0.06, 0.004, 0.06 }, { -0.2, -0.38, -0.2, 0.3, -0.035, -0.008, 0.058 } }, { 0.72, 0.034, 0 }, 250)
+            { 0.72, 0.034, 0 }, 250)
         D.rifle.name, D.rifle.bolt, D.rifle.interval, D.rifle.mag, D.rifle.casing = "M14 RIFLE", false, 0.42, 10, 0
     end
     if PA.has(PA.GUNS .. "Makarov/Makarov.obj") then
         Wp.packPistol = buildObjGun("Makarov/Makarov.obj", "Makarov/Texture/Mak_Textiure_240.png", 0.102, { -0.6, 1.0, 0 },
             { body = { "Makarov_Body", "Makarov_Hammer" }, bolt = { "Makarov_Slide" }, mag = { "Makarov_Mag_empty" } },
-            { { -0.3, -0.25, 0.16, -0.02, -0.02, 0.004, 0.05 }, { -0.25, -0.3, -0.14, -0.012, -0.04, -0.012, 0.048 } }, { 0.114, 0.061, 0 }, 260)
-        D.pistol.name, D.pistol.ads = "MAKAROV PM", { 0.0, -0.079, 0.3 }
+            { 0.114, 0.061, 0 }, 260)
+        D.pistol.name, D.pistol.ads = "MAKAROV PM", { 0.0, -0.079, 0.36 }
     end
     if PA.has(PA.AK) then
         Wp.packSMG = buildAK()
@@ -227,21 +198,21 @@ function Wp.init(game)
         D.smg.ads = { 0.0, -0.079, 0.25 }
     end
     Wp.models = { rifle = Wp.packRifle or buildRifle(), smg = Wp.packSMG or buildSMG(),
-        pistol = Wp.packPistol or buildImported("pistol", { { -0.3, -0.25, 0.16, -0.03, -0.005, 0.004, 0.052 }, { -0.25, -0.3, -0.14, -0.022, -0.03, -0.012, 0.05 } },
-                               { 0.152, 0.071, 0 }, 221),
-        shotgun = buildImported("pump_shotgun", { { -0.45, -0.3, 0.14, -0.1, -0.05, 0.004, 0.06 }, { -0.2, -0.38, -0.2, 0.27, -0.04, -0.008, 0.058 } },
-                                { 0.66, 0.035, 0 }, 231) }
+        pistol = Wp.packPistol or buildImported("pistol", { 0.152, 0.071, 0 }),
+        shotgun = buildImported("pump_shotgun", { 0.66, 0.035, 0 }) }
     Wp.mats = { {}, {}, {} }
+    VM.init()
     Wp.reset()
 end
 
 function Wp.reset()
-    Wp.current = "rifle"
+    Wp.current = PA.has(PA.AK) and "smg" or "rifle"
     Wp.mag = {}
     for id, def in pairs(Wp.DEFS) do Wp.mag[id] = def.mag end
     Wp.shotT = 99
     Wp.cool = 0
     Wp.reloadT = 0
+    Wp.reloadLen = 1
     Wp.kick, Wp.kickRot, Wp.kickSide = 0, 0, 0
     Wp.aiming = false
     Wp.aimT = 0
@@ -259,7 +230,7 @@ end
 function Wp.serialize() return { current = Wp.current, mag = U.copy(Wp.mag) } end
 function Wp.load(s)
     if s then
-        Wp.current = Wp.DEFS[s.current] and s.current or "rifle"
+        Wp.current = Wp.DEFS[s.current] and s.current or Wp.current
         for k, v in pairs(s.mag or {}) do if Wp.mag[k] then Wp.mag[k] = v end end
     end
 end
@@ -294,10 +265,6 @@ local function traceAll(ox, oy, oz, dx, dy, dz, maxT, owner)
         local t4, e, hx, hy, hz = G.enemies.raycast(ox, oy, oz, dx, dy, dz, bestT)
         if t4 and t4 < bestT then bestT, kind, obj, nx, ny, nz = t4, "enemytank", e, hx, hy, hz end
     end
-    if G.creatures then
-        local t5, cr, part = G.creatures.raycast(ox, oy, oz, dx, dy, dz, bestT)
-        if t5 and t5 < bestT then bestT, kind, obj = t5, "creature", { c = cr, part = part } end
-    end
     if G.humans then
         local t6, hu, part = G.humans.raycast(ox, oy, oz, dx, dy, dz, bestT)
         if t6 and t6 < bestT then bestT, kind, obj = t6, "human", { h = hu, part = part } end
@@ -313,12 +280,7 @@ function Wp.hitscan(ox, oy, oz, dx, dy, dz, range, damage, kind, tracer)
     local hx, hy, hz = ox + dx * (t or range), oy + dy * (t or range), oz + dz * (t or range)
     if tracer then G.effects.tracer(ox + dx * 2, oy + dy * 2, oz + dz * 2, dx, dy, dz, 420, math.min(0.35, (t or range) / 420)) end
     if not t then return end
-    if what == "creature" then
-        local mult = obj.part == "head" and 2.0 or 1
-        G.creatures.damage(obj.c, damage * mult, hx, hy, hz, dx, dz)
-        G.effects.blood(hx, hy, hz, 5)
-        if G.audio then G.audio.play("flesh", { x = hx, y = hy, z = hz, volume = 0.6 }) end
-    elseif what == "human" then
+    if what == "human" then
         local mult = obj.part == "head" and 2.5 or 1
         G.humans.damage(obj.h, damage * mult, owner == "foot" or owner == "player")
         G.effects.blood(hx, hy, hz, 6)
@@ -353,10 +315,7 @@ end
 function Wp.explode(x, y, z, radius, damage, owner, skipObj)
     G.effects.explosion(x, y, z, radius / 8)
     if G.audio then G.audio.play("explosion", { x = x, y = y, z = z, big = radius > 6 }) end
-    if G.creatures then
-        G.creatures.noise(x, y, z, 350, "explosion")
-        G.creatures.splash(x, y, z, radius, damage)
-    end
+    if G.humans then G.humans.noise(x, y, z, 350) end
     -- player on foot
     local pl = G.player
     if pl.frameName == "world" and pl.mode ~= "dead" then
@@ -373,7 +332,10 @@ function Wp.explode(x, y, z, radius, damage, owner, skipObj)
     end
     if G.enemies then G.enemies.splash(x, y, z, radius, damage, skipObj) end
     if G.humans then G.humans.splash(x, y, z, radius, damage) end
-    if G.destruction then G.destruction.splash(x, y, z, radius * 1.1, damage * 2.5) end
+    if G.destruction then
+        G.destruction.splash(x, y, z, radius * 1.1, damage * 2.5)
+        if radius >= 4 then G.destruction.blastTrees(x, y, z, radius * 1.2) end
+    end
 end
 
 function Wp.updateProjectiles(dt)
@@ -421,12 +383,13 @@ function Wp.shellImpact(p, x, y, z, what, obj, nx, ny, nz, dx, dy, dz)
         Wp.explode(x, y, z, he and 7 or 3.5, he and 120 or 40, p.owner, T)
         if G.audio then G.audio.play("armor_hit", { x = x, y = y, z = z, big = true, tankHit = true }) end
         return
-    elseif what == "creature" then
-        G.creatures.damage(obj.c, he and 300 or 600, x, y, z, dx, dz)
     elseif what == "human" then
         G.humans.damage(obj.h, 500, p.owner == "player")
     elseif what == "world" and obj and obj.obj and G.destruction then
         G.destruction.damage(obj.obj, he and 700 or 520, "explosion", x, y, z)
+    elseif what == "world" and obj and obj.treeRec and G.destruction then
+        -- a shell through a trunk fells it along the shell's path
+        G.destruction.knockTree(obj.treeRec, dx or 1, dz or 0, 0.8)
     end
     Wp.explode(x, y, z, he and 10 or 4, he and 220 or 70, p.owner)
     if what == "terrain" then
@@ -461,18 +424,41 @@ function Wp.update(dt)
     local def = Wp.DEFS[Wp.current]
     if Wp.reloadT > 0 then
         Wp.reloadT = Wp.reloadT - dt
-        if Wp.reloadT <= 0 then
-            Wp.reloadT = 0
-            local inv = G.inventory.player
-            local need = def.mag - Wp.mag[Wp.current]
-            local got = math.min(need, inv:count(def.ammo))
-            inv:remove(def.ammo, got)
-            Wp.mag[Wp.current] = Wp.mag[Wp.current] + got
+        local inv = G.inventory.player
+        if def.pellets then
+            -- the shotgun is fed one shell at a time; firing stops the reload after the current shell
+            if Wp.reloadT <= 0 then
+                if inv:count(def.ammo) > 0 and Wp.mag[Wp.current] < def.mag then
+                    inv:remove(def.ammo, 1)
+                    Wp.mag[Wp.current] = Wp.mag[Wp.current] + 1
+                    if G.audio then G.audio.play("click", { volume = 0.5, pitch = 1.4 }) end
+                end
+                if Wp.mag[Wp.current] < def.mag and inv:count(def.ammo) > 0 and not Wp.stopReload then
+                    Wp.reloadT = def.shellTime
+                else
+                    Wp.reloadT = 0
+                    if Wp.reloadEmpty then Wp.shotT = Gltf.duration(Wp.models.shotgun.gltf, "fire") Wp.reloadEmpty = false
+                        if G.audio then G.audio.play("bolt", {}) end end
+                end
+            end
+        else
+            -- magazines go in at the moment the hand seats them
+            local p = 1 - Wp.reloadT / Wp.reloadLen
+            if not Wp.magIn and p >= (Wp.current == "pistol" and 0.78 or 0.7) then
+                Wp.magIn = true
+                local need = def.mag - Wp.mag[Wp.current]
+                local got = math.min(need, inv:count(def.ammo))
+                inv:remove(def.ammo, got)
+                Wp.mag[Wp.current] = Wp.mag[Wp.current] + got
+                if G.audio then G.audio.play("click", { volume = 0.7 }) end
+            end
+            if Wp.reloadT <= 0 then Wp.reloadT = 0 end
         end
     end
     Wp.aiming = usable and love.mouse.isDown(2) and Wp.reloadT <= 0 and not pl.sprinting
     Wp.aimT = U.damp(Wp.aimT, Wp.aiming and 1 or 0, 14, dt)
     Wp.sprintT = U.damp(Wp.sprintT, (pl.sprinting and not Wp.aiming) and 1 or 0, 8, dt)
+    if usable and love.mouse.isDown(1) and def.pellets and Wp.reloadT > 0 then Wp.stopReload = true end
     if usable and love.mouse.isDown(1) and Wp.cool <= 0 and Wp.reloadT <= 0 and Wp.switchT <= 0 and Wp.sprintT < 0.3 then
         if def.auto or not Wp.triggerLatch then Wp.fire() end
     end
@@ -509,14 +495,14 @@ function Wp.fire()
     local ox, oy = math.cos(a) * r, math.sin(a) * r
     local dx, dy, dz = U.norm3(cam.fx + rx * ox + cam.ux * oy, cam.fy + ry * ox + cam.uy * oy, cam.fz + rz * ox + cam.uz * oy)
     local t, what = Wp.hitscan(cam.x, cam.y, cam.z, dx, dy, dz, def.range or 320, def.damage, "foot", Wp.current == "smg" and Wp.mag.smg % 4 == 0)
-    if what == "creature" or what == "human" then Wp.hitT = 1 end
+    if what == "human" then Wp.hitT = 1 end
     -- buckshot: the rest of the pellets scatter around the first
     for i = 2, def.pellets or 1 do
         local pa, pr = math.random() * 6.28, math.sqrt(math.random()) * spread
         local px, py = math.cos(pa) * pr, math.sin(pa) * pr
         local ex, ey, ez = U.norm3(cam.fx + rx * px + cam.ux * py, cam.fy + ry * px + cam.uy * py, cam.fz + rz * px + cam.uz * py)
         local _, w2 = Wp.hitscan(cam.x, cam.y, cam.z, ex, ey, ez, def.range or 320, def.damage, "foot", false)
-        if w2 == "creature" or w2 == "human" then Wp.hitT = 1 end
+        if w2 == "human" then Wp.hitT = 1 end
     end
     Wp.shotT = 0
     -- muzzle position from the viewmodel
@@ -534,7 +520,6 @@ function Wp.fire()
     pl.yaw = pl.yaw + (math.random() - 0.5) * climb * 0.5
     if G.camera then G.camera.shake(Wp.current == "rifle" and 0.25 or 0.08) end
     if G.audio then G.audio.play(def.sound, {}) end
-    if G.creatures then G.creatures.noise(cam.x, cam.y, cam.z, def.noise, "gunshot") end
     if G.humans then G.humans.noise(cam.x, cam.y, cam.z, def.noise) end
     if def.bolt then
         Wp.boltT = 0.75
@@ -557,7 +542,17 @@ function Wp.reload()
         if G.ui then G.ui.notify("NO AMMO FOR THE " .. def.name) end
         return
     end
-    Wp.reloadT = def.reload
+    Wp.reloadEmpty = Wp.mag[Wp.current] == 0
+    Wp.magIn = false
+    Wp.stopReload = false
+    if def.pellets then
+        Wp.reloadT = def.shellTime + 0.25
+        Wp.reloadLen = Wp.reloadT
+    else
+        -- a tactical reload (round still chambered) skips working the charging handle
+        Wp.reloadLen = def.reload * (Wp.reloadEmpty and 1 or 0.85)
+        Wp.reloadT = Wp.reloadLen
+    end
     if G.audio then G.audio.play(Wp.current == "rifle" and "reload" or "mg_reload", { volume = 0.7 }) end
 end
 
@@ -591,10 +586,24 @@ local function partFrame(base, x, y, z, pitch, yaw, out)
     return base:compose(out, M3.frame())
 end
 
+-- the weapon and arms get their own, narrower field of view (as in most shooters): at the world's wide
+-- angle a gun this close to the eye is bent towards the middle of the screen by perspective
+Wp.VM_FOV = math.rad(52)
+local vmProj, vmViewProj = M3.identity(), M3.identity()
+
 function Wp.drawViewmodel()
     if Wp.holster > 0.95 then return end
     local cam = G.camera
     love.graphics.clear(false, false, true)
+    M3.perspective(math.min(cam.fov, Wp.VM_FOV), R.lowW / R.lowH, 0.01, 20, vmProj)
+    M3.mul(vmProj, R.view, vmViewProj)
+    R.send(R.world, "viewProj", "row", vmViewProj)
+    Wp.drawViewmodelParts()
+    R.send(R.world, "viewProj", "row", R.viewProj)
+end
+
+function Wp.drawViewmodelParts()
+    local cam = G.camera
     local def = Wp.DEFS[Wp.current]
     local m = Wp.models[Wp.current]
     local f = Wp.vmFrame or M3.frame()
@@ -602,82 +611,93 @@ function Wp.drawViewmodel()
     local rx, ry, rz = R.camRight[1], R.camRight[2], R.camRight[3]
     local aim = Wp.aimT
     local hip, ads = def.hip, def.ads
-    -- reload choreography: lower and roll the weapon
-    local rl = 0
-    if Wp.reloadT > 0 then
-        local p = 1 - Wp.reloadT / def.reload
-        rl = math.sin(math.min(1, p * 1.25) * math.pi)
+    -- reload choreography comes from the hand track
+    local rig = VM.RIGS[Wp.current]
+    local reloading = Wp.reloadT > 0
+    local smp, shellPhase
+    if reloading and rig and rig.track ~= "shells" then
+        local p = U.clamp(1 - Wp.reloadT / Wp.reloadLen, 0, 1)
+        smp = VM.sample(VM.TRACKS[rig.track], p, Wp.reloadEmpty)
+    elseif reloading and rig and rig.track == "shells" then
+        shellPhase = U.clamp(1 - Wp.reloadT / def.shellTime, 0, 1)
+        smp = { roll = 0.25, pitch = 0.05, drop = 0.03 }
     end
+    local roll0 = smp and smp.roll or 0
+    local pitch0 = smp and smp.pitch or 0
+    local drop0 = smp and smp.drop or 0
     local sw = Wp.switchT
     local spr = Wp.sprintT
-    local ox = U.lerp(hip[1], ads[1], aim) + Wp.swayX + Wp.lookX + Wp.kickSide * 0.004 * Wp.kick - spr * 0.04
-    local oy = U.lerp(hip[2], ads[2], aim) - Wp.swayY + Wp.lookY - Wp.holster * 0.45 - rl * 0.07 - sw * 0.25 - spr * 0.05
-    local oz = U.lerp(hip[3], ads[3], aim) - Wp.kick * 0.055 + rl * 0.02
-    -- idle breathing
+    local ox = U.lerp(hip[1], ads[1], aim) + Wp.swayX + Wp.lookX + Wp.kickSide * 0.004 * Wp.kick - spr * 0.04 - roll0 * 0.04
+    local oy = U.lerp(hip[2], ads[2], aim) - Wp.swayY + Wp.lookY - Wp.holster * 0.45 - drop0 - sw * 0.25 - spr * 0.05
+    local oz = U.lerp(hip[3], ads[3], aim) - Wp.kick * 0.055
     local t = love.timer.getTime()
     oy = oy + math.sin(t * 1.6) * 0.0025 * (1 - aim * 0.7)
+    -- shiver when freezing
+    local pl = G.player
+    if pl.warmth < 25 then
+        local k = (25 - pl.warmth) / 25
+        ox = ox + math.sin(t * 37) * 0.0015 * k
+        oy = oy + math.sin(t * 41 + 1) * 0.0015 * k
+    end
     f.px = cam.x + cam.fx * oz + rx * ox + cam.ux * oy
     f.py = cam.y + cam.fy * oz + ry * ox + cam.uy * oy
     f.pz = cam.z + cam.fz * oz + rz * ox + cam.uz * oy
-    -- orientation: muzzle climb from recoil, roll during reload, tilt while sprinting
-    local pitch = Wp.kickRot * 0.09 + rl * 0.25 - spr * 0.5
-    local yawOff = rl * 0.35 + spr * 0.7 - Wp.lookX * 2
+    -- orientation: muzzle climb from recoil, tilt for the reload, swing while sprinting
+    local pitch = Wp.kickRot * 0.09 + pitch0 - spr * 0.45
+    local yawOff = spr * 0.75 - Wp.lookX * 2 + roll0 * 0.25
     local cp, sp = math.cos(pitch), math.sin(pitch)
     local cy2, sy2 = math.cos(yawOff), math.sin(yawOff)
-    -- forward rotated by yaw (around camera up) then pitch (around right)
     local fx = cam.fx * cy2 + rx * sy2
     local fy = cam.fy * cy2 + ry * sy2
     local fz = cam.fz * cy2 + rz * sy2
     local rrx, rry, rrz = U.norm3(U.cross(fx, fy, fz, cam.ux, cam.uy, cam.uz))
     fx, fy, fz = fx * cp + cam.ux * sp, fy * cp + cam.uy * sp, fz * cp + cam.uz * sp
     local ux, uy, uz = U.cross(rrx, rry, rrz, fx, fy, fz)
-    local roll = rl * 0.6
+    local roll = roll0 + spr * 0.25
     local cr, sr = math.cos(roll), math.sin(roll)
     f.fx, f.fy, f.fz = fx, fy, fz
     f.ux, f.uy, f.uz = ux * cr + rrx * sr, uy * cr + rry * sr, uz * cr + rrz * sr
     f.rx, f.ry, f.rz = rrx * cr - ux * sr, rry * cr - uy * sr, rrz * cr - uz * sr
     local under = G.world.isUnderground(cam.x, cam.y, cam.z)
     local params = { interior = under and 1 or 0, fog = { 100, 200, 0 } }
+    local worn = G.inventory.worn or {}
+    local st = { reload = smp and not shellPhase, sample = smp, shellPhase = shellPhase, pump = 0, torso = worn.torso, hands = worn.hands }
     if m.gltf then
-        -- the model's own clips: reload, then fire (and the pump stroke after it)
+        -- the model's own clips animate the pump and trigger; the hands follow
         local clip, ct = nil, 0
         local fireD = Gltf.duration(m.gltf, "fire")
-        if Wp.reloadT > 0 and m.gltf.anims.reload then
-            clip, ct = "reload", (1 - Wp.reloadT / def.reload) * Gltf.duration(m.gltf, "reload")
-        elseif Wp.shotT < fireD then clip, ct = "fire", Wp.shotT
-        elseif def.pump and Wp.shotT < fireD + Gltf.duration(m.gltf, "pump") then clip, ct = "pump", Wp.shotT - fireD end
+        local pumpD = Gltf.duration(m.gltf, "pump")
+        if Wp.shotT < fireD then clip, ct = "fire", Wp.shotT
+        elseif def.pump and Wp.shotT < fireD + pumpD then
+            clip, ct = "pump", Wp.shotT - fireD
+            st.pump = math.sin(ct / math.max(pumpD, 0.01) * math.pi)
+        end
         Gltf.pose(m.gltf, clip, ct, false)
         local wm = f:matrix(Wp.mats[1])
         Gltf.draw(R, m.gltf, wm, params)
-        R.drawModel(m.arms, wm, params)
+        VM.drawArms(Wp.current, f, st, params)
         return
     end
     R.drawModel(m.body, f:matrix(Wp.mats[1]), params)
-    -- moving parts
     local tmp = M3.frame()
-    local bx, bby, bz = 0, 0, 0
-    if Wp.current == "rifle" then
-        -- bolt: lift and pull back after each shot or during reload
-        local b = 0
-        if Wp.boltT > 0 then b = math.sin((1 - Wp.boltT / 0.75) * math.pi) end
-        if Wp.reloadT > 0 then b = math.max(b, math.min(1, rl * 2)) end
-        bx = -b * 0.08
-        local bf = partFrame(f, bx, 0, 0, 0, 0, tmp)
-        R.drawModel(m.bolt, bf:matrix(Wp.mats[2]), params)
-        if Wp.reloadT > 0 and rl > 0.3 then
-            local cf = partFrame(f, 0, 0.03 + (1 - rl) * 0.08, 0, 0, 0, M3.frame())
-            R.drawModel(m.mag, cf:matrix(Wp.mats[3]), params)
-        end
-    else
-        -- slide/cocking handle snaps back on each shot
-        local back = (Wp.current == "pistol" and math.min(1, Wp.kick) * 0.03) or (Wp.cool > 0 and 0.03 or 0)
+    -- slide / bolt: snaps back on each shot, worked by hand at the end of an empty reload
+    local back = 0
+    if Wp.current == "pistol" then back = math.min(1, Wp.kick) * 0.03 else back = (Wp.cool > def.interval * 0.5 and 0.03 or 0) end
+    if smp and smp.pull and rig then back = math.max(back, smp.pull * (rig.chargeTravel or 0.05)) end
+    if Wp.current == "rifle" and def.bolt and Wp.boltT > 0 then back = math.max(back, math.sin((1 - Wp.boltT / 0.75) * math.pi) * 0.08) end
+    if m.bolt then
         local bf = partFrame(f, -back, 0, 0, 0, 0, tmp)
         R.drawModel(m.bolt, bf:matrix(Wp.mats[2]), params)
-        -- magazine drops away and returns during reloads
-        local drop = rl * 0.3
-        local mf = partFrame(f, -drop * 0.3, -drop, 0, 0, 0, M3.frame())
-        R.drawModel(m.mag, mf:matrix(Wp.mats[3]), params)
     end
+    if m.mag then
+        if smp and rig and rig.magTop then
+            local mf = VM.magFrame(Wp.current, f, smp, M3.frame())
+            R.drawModel(m.mag, mf:matrix(Wp.mats[3]), params)
+        else
+            R.drawModel(m.mag, f:matrix(Wp.mats[3]), params)
+        end
+    end
+    VM.drawArms(rig and Wp.current or "smg", f, st, params)
 end
 
 return Wp

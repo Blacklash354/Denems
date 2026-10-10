@@ -86,8 +86,6 @@ function Menu.drawPause()
     if UI.button("SETTINGS", x, y + 72, 150, 18) then Game.state = "settings" end
     if UI.button("MAIN MENU", x, y + 96, 150, 18) then Menu.open() end
     if UI.button("QUIT", x, y + 120, 150, 18) then love.event.quit() end
-    -- objectives & controls reminder
-    UI.text("OBJECTIVE: " .. (G.missions.current() and G.missions.current().text or "COMPLETE"), 0, 260, UI.COL.amber, UI.fontS, "center", UI.VW)
     UI.text("TIME " .. G.environment.clockString() .. "   PLAYED " .. U.formatTime(Game.playTime), 0, 272, UI.COL.dim, UI.fontS, "center", UI.VW)
 end
 

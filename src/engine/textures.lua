@@ -88,6 +88,116 @@ function T.init()
         end
         return cr, cg, cb
     end)
+    -- road surface: u runs across the road (edge to edge), v along it. Packed snow over asphalt, a
+    -- faint dashed centre line and snowy shoulders. No baked ruts or stains: the tracks on the roads
+    -- are the ones vehicles actually leave (effects.lua decals).
+    make("road", 64, function(x, y, s, r)
+        local u = (x + 0.5) / s
+        local n = tfbm(x, y, s, 4, 3, 81)
+        local fine = tfbm(x, y, s, 16, 2, 82)
+        local v = 0.7 + n * 0.12 + fine * 0.06
+        local cr, cg, cb = v * 0.95, v * 0.955, v * 0.975
+        if math.abs(u - 0.5) < 0.018 and (y % 32) < 16 and n > 0.4 then cr, cg, cb = cr * 0.85 + 0.12, cg * 0.85 + 0.12, cb * 0.8 + 0.08 end
+        local edge = math.min(u, 1 - u)
+        if edge < 0.08 then
+            local k = 1 - edge / 0.08
+            cr, cg, cb = U.lerp(cr, 0.86 + fine * 0.08, k), U.lerp(cg, 0.88 + fine * 0.08, k), U.lerp(cb, 0.92 + fine * 0.07, k)
+        end
+        if r:next() > 0.985 then cr, cg, cb = cr + 0.08, cg + 0.08, cb + 0.09 end
+        return cr, cg, cb
+    end)
+    -- dirt track: frozen, snow-covered earth; just a hint of earth where the snow is thin
+    make("track", 64, function(x, y, s, r)
+        local u = (x + 0.5) / s
+        local n = tfbm(x, y, s, 4, 3, 83)
+        local fine = tfbm(x, y, s, 16, 2, 84)
+        local v = 0.78 + n * 0.12 + fine * 0.06
+        local cr, cg, cb = v * 0.97, v * 0.98, v
+        local thin = tfbm(x, y, s, 4, 2, 79)
+        if thin > 0.7 then
+            local k = U.clamp((thin - 0.7) * 3, 0, 0.18)
+            cr, cg, cb = U.lerp(cr, 0.6, k), U.lerp(cg, 0.57, k), U.lerp(cb, 0.54, k)
+        end
+        local edge = math.min(u, 1 - u)
+        if edge < 0.1 then cr, cg, cb = cr + (0.1 - edge) * 0.8, cg + (0.1 - edge) * 0.8, cb + (0.1 - edge) * 0.8 end
+        return cr, cg, cb
+    end)
+    -- print of a track (cleats across, u = across the belt, v = along) and of a boot sole
+    make("trackprint", 32, function(x, y, s, r)
+        local cleat = (y % 8) < 3
+        local edge = x < 2 or x > s - 3
+        local v = cleat and 0.62 or 0.92
+        if edge then v = 0.8 end
+        v = v + (r:next() - 0.5) * 0.06
+        return v, v, v * 1.02
+    end)
+    -- snow lying on the tank: white with an alpha mask, revealed bit by bit (alpha cut = 1 - cover)
+    make("snowmask", 32, function(x, y, s, r)
+        local n = tfbm(x, y, s, 4, 3, 93)
+        local fine = tnoise(x, y, s, 16, 94)
+        local a = U.clamp(n * 0.85 + fine * 0.25 - 0.05, 0.02, 0.99)
+        local v = 0.9 + fine * 0.08
+        return v * 0.96, v * 0.98, v, a
+    end)
+    -- Soviet prefab facade: large panels with dark seams and rust/water streaks
+    make("panel", 64, function(x, y, s, r)
+        local n = tfbm(x, y, s, 4, 3, 85)
+        local v = 0.62 + n * 0.14 + r:next() * 0.04
+        local seam = (x % 32 == 0) or (y % 32 == 0)
+        if seam then v = v * 0.55 end
+        local streak = tnoise(x, 0, s, 16, 86)
+        if streak > 0.7 and (y % 32) > 6 then v = v * (0.88 - (streak - 0.7)) end
+        local stain = tfbm(x, y, s, 2, 2, 87)
+        if stain > 0.66 then return v * 0.92, v * 0.86, v * 0.78 end
+        return v, v * 0.99, v * 0.97
+    end)
+    -- faded wallpaper with a repeating pattern, torn in places
+    make("wallpaper", 32, function(x, y, s, r)
+        local n = tfbm(x, y, s, 4, 3, 88)
+        local motif = ((x % 8 == 3 or x % 8 == 4) and (y % 8 == 2 or y % 8 == 5)) and -0.07 or 0
+        local stripe = (x % 16 < 2) and -0.04 or 0
+        local v = 0.58 + n * 0.1 + motif + stripe
+        if n > 0.72 then local c = 0.5 + r:next() * 0.06 return c, c * 0.97, c * 0.92 end
+        return v * 0.95, v * 0.88, v * 0.7
+    end)
+    make("linoleum", 32, function(x, y, s, r)
+        local n = tfbm(x, y, s, 4, 3, 89)
+        local check = ((math.floor(x / 8) + math.floor(y / 8)) % 2 == 0) and 0.05 or -0.03
+        local v = 0.42 + n * 0.12 + check + r:next() * 0.03
+        return v * 1.05, v * 0.82, v * 0.62
+    end)
+    make("tile", 32, function(x, y, s, r)
+        if x % 8 == 0 or y % 8 == 0 then return 0.42, 0.44, 0.44 end
+        local v = 0.7 + tnoise(x, y, s, 4, 90) * 0.12 + r:next() * 0.03
+        return v * 0.9, v * 0.97, v
+    end)
+    -- quilted army winter cloth (khaki/olive) for coats and sleeves
+    make("quilt", 32, function(x, y, s, r)
+        local seam = (y % 6 == 0) and -0.07 or 0
+        local v = 0.4 + tnoise(x, y, s, 8, 91) * 0.1 + seam + r:next() * 0.03
+        return v * 0.92, v * 0.95, v * 0.72
+    end)
+    -- knitted glove / mitten
+    make("knit", 16, function(x, y, s, r)
+        local v = 0.3 + (((x + y) % 2 == 0) and 0.05 or 0) + r:next() * 0.05
+        return v, v * 0.95, v * 0.88
+    end)
+    -- a tiny face: brows, eyes, nose shadow, mouth on skin
+    make("face", 16, function(x, y, s, r)
+        local cr, cg, cb = 0.78, 0.6, 0.5
+        local n = r:next() * 0.04
+        cr, cg, cb = cr + n, cg + n, cb + n
+        if y == 5 and (x >= 3 and x <= 6 or x >= 9 and x <= 12) then return 0.25, 0.18, 0.14 end   -- brows
+        if y == 7 and (x == 4 or x == 5 or x == 10 or x == 11) then return 0.12, 0.1, 0.1 end      -- eyes
+        if (y == 9 or y == 10) and (x == 7 or x == 8) then return cr * 0.82, cg * 0.78, cb * 0.75 end -- nose
+        if y == 12 and x >= 5 and x <= 10 then return 0.45, 0.25, 0.22 end                          -- mouth
+        if y >= 13 then return cr * 0.85, cg * 0.82, cb * 0.8 end                                     -- stubble
+        return cr, cg, cb
+    end)
+    make("glass", 16, function(x, y, s, r)
+        local v = 0.25 + tnoise(x, y, s, 4, 92) * 0.15 + ((x == y or x + 1 == y) and 0.2 or 0)
+        return v * 0.8, v * 0.9, v * 1.05
+    end)
     make("ground", 32, function(x, y, s, r)
         local n = tfbm(x, y, s, 4, 3, 3)
         local v = 0.35 + n * 0.25 + r:next() * 0.05
@@ -162,6 +272,23 @@ function T.init()
         return v * 1.35, v * 0.72, v * 0.45
     end)
     -- worn dark grey tank paint with rust, chips, mud and whitewash streaks
+    -- Soviet 4BO green, half covered in a hasty winter whitewash, scuffed back to green and rust
+    make("sovwinter", 64, function(x, y, s, r)
+        local n = tfbm(x, y, s, 4, 4, 61)
+        local v = 0.3 + n * 0.08
+        local cr, cg, cb = v * 0.92, v * 1.12, v * 0.72
+        local wash = tfbm(x, y, s, 2, 3, 62) + (tnoise(x, y, s, 16, 63) - 0.5) * 0.25
+        if wash > 0.42 then
+            local k = U.clamp((wash - 0.42) * 6, 0, 1)
+            local w = 0.78 + n * 0.1
+            cr, cg, cb = U.lerp(cr, w * 0.98, k), U.lerp(cg, w, k), U.lerp(cb, w * 0.97, k)
+        end
+        local streak = tnoise(x, 0, s, 16, 64)
+        if streak > 0.7 and (y / s) > 0.25 then cr, cg, cb = cr * 0.82, cg * 0.8, cb * 0.78 end
+        if tfbm(x, y, s, 8, 3, 65) > 0.74 then cr, cg, cb = 0.4, 0.27, 0.18 end
+        if r:next() > 0.985 then cr, cg, cb = 0.45, 0.45, 0.43 end
+        return cr, cg, cb
+    end)
     make("tank", 64, function(x, y, s, r)
         local n = tfbm(x, y, s, 4, 4, 16)
         local camo = tfbm(x, y, s, 2, 2, 116)

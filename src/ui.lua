@@ -121,136 +121,38 @@ function UI.slider(label, x, y, w, value)
 end
 
 ---------------------------------------------------------------------------
--- HUD pieces
+-- HUD pieces: kept small and quiet - three thin bars, the ammo count, the use prompt
 ---------------------------------------------------------------------------
-local CARD = { [0] = "E", [90] = "S", [180] = "W", [270] = "N" }
-local INTER = { [45] = "SE", [135] = "SW", [225] = "NW", [315] = "NE" }
-
--- Skyrim-style compass ribbon: cardinal letters, ticks and markers for places, the tank,
--- the objective and (inside the tank) radar contacts.
-local function compass(cx, y)
-    local cam = G.camera
-    local yaw = math.deg(math.atan2(cam.fz, cam.fx)) % 360
-    local w, h = 250, 16
-    local half = 95 -- degrees visible each side
-    local x0 = cx - w / 2
-    -- frame
-    lg.setColor(0, 0, 0, 0.45)
-    lg.rectangle("fill", x0, y, w, h)
-    for k = 1, 6 do
-        lg.setColor(0, 0, 0, 0.07 * k)
-        lg.rectangle("fill", x0 - 14 + k * 2, y, 2, h)
-        lg.rectangle("fill", x0 + w + 12 - k * 2, y, 2, h)
-    end
-    lg.setColor(0.85, 0.8, 0.65, 0.55)
-    lg.rectangle("fill", x0, y, w, 1)
-    lg.rectangle("fill", x0, y + h - 1, w, 1)
-    lg.polygon("fill", x0 - 6, y + h / 2, x0, y + 2, x0, y + h - 2)
-    lg.polygon("fill", x0 + w + 6, y + h / 2, x0 + w, y + 2, x0 + w, y + h - 2)
-    lg.setScissor()
-    local sw, sh = lg.getDimensions()
-    local function rel(deg) return (deg - yaw + 540) % 360 - 180 end
-    local function xAt(r) return cx + r / half * (w / 2) end
-    for d = 0, 355, 5 do
-        local r = rel(d)
-        if math.abs(r) < half then
-            local x = xAt(r)
-            local fade = 1 - (math.abs(r) / half) ^ 2
-            if CARD[d] then
-                local col = d == 270 and { 0.95, 0.4, 0.3, fade } or { 0.95, 0.92, 0.85, fade }
-                text(CARD[d], x - 10, y + 2, col, UI.font, "center", 20)
-            elseif INTER[d] then
-                text(INTER[d], x - 10, y + 4, { 0.8, 0.78, 0.72, 0.8 * fade }, UI.fontS, "center", 20)
-            elseif d % 15 == 0 then
-                lg.setColor(0.9, 0.88, 0.8, 0.5 * fade)
-                lg.rectangle("fill", x, y + h - 5, 1, 3)
-            end
-        end
-    end
-    -- markers
-    local px, pz = cam.x, cam.z
-    local function marker(wx, wz, draw)
-        local r = rel(math.deg(math.atan2(wz - pz, wx - px)) % 360)
-        if math.abs(r) < half then draw(xAt(r), math.abs(r)) end
-    end
-    local M = G.missions
-    for _, l in ipairs(G.world.locations) do
-        local d = U.dist2(px, pz, l.x, l.z)
-        if (M.discovered[l.id] or M.revealed[l.id]) and d < 700 and d > l.r * 0.5 then
-            marker(l.x, l.z, function(x, ar)
-                lg.setColor(0.85, 0.85, 0.8, 0.85)
-                lg.rectangle("line", x - 2.5, y + h + 2.5, 5, 5)
-                if ar < 6 then text(l.name, x - 50, y + h + 10, { 0.85, 0.85, 0.8, 0.9 }, UI.fontS, "center", 100) end
-            end)
-        end
-    end
-    local pl = G.player
-    if pl.frameName ~= "tank" then
-        local T = G.tank
-        marker(T.x, T.z, function(x)
-            lg.setColor(0.55, 0.85, 0.5, 0.95)
-            lg.rectangle("fill", x - 3, y + 6, 6, 4)
-            lg.rectangle("fill", x, y + 7, 5, 1)
-        end)
-    elseif G.radar then
-        for _, b in ipairs(G.radar.blips) do
-            if b.hostile then
-                local T = G.tank
-                local wx, wy, wz = T.frame:toWorld(b.x * G.radar.RANGE, 0, b.z * G.radar.RANGE)
-                marker(wx, wz, function(x)
-                    lg.setColor(1, 0.3, 0.2, b.life)
-                    lg.circle("fill", x, y + h - 4, 1.8, 6)
-                end)
-            end
-        end
-    end
-    local tx, tz = UI.objectiveTarget()
-    if tx then
-        marker(tx, tz, function(x)
-            lg.setColor(COL.amber[1], COL.amber[2], COL.amber[3], 0.95)
-            lg.polygon("fill", x, y + 2, x + 4, y + 7, x, y + 12, x - 4, y + 7)
-            text(string.format("%dM", U.dist2(px, pz, tx, tz)), x - 20, y + h + 1, { COL.amber[1], COL.amber[2], COL.amber[3], 0.9 }, UI.fontS, "center", 40)
-        end)
-    end
-end
-
-function UI.objectiveTarget()
-    local M = G.missions
-    local cur = M.current()
-    if not cur then return nil end
-    local W = G.world
-    local id = cur.id
-    if id == "tower" or id == "transmitter" then return W.tower.x, W.tower.z end
-    if (id == "bunker" or id == "keycard") and M.revealed.bunker then return W.bunker.x, W.bunker.z end
-    if (id == "plant" or id == "control" or id == "signal") and M.revealed.plant then return W.controlRoom.x0, W.controlRoom.z0 + 13 end
-    return nil
-end
+function UI.objectiveTarget() return nil end
 
 local function statusPanel()
     local pl = G.player
     local S = G.survival
-    local x, y = 10, UI.VH - 70
-    local lines = {}
-    if S.coldLevel > 0.05 or pl.warmth < 60 then lines[#lines + 1] = { "COLD", COL.cold } end
-    if S.radLevel > 0.05 or pl.radiation > 5 then lines[#lines + 1] = { "RADIATION", COL.rad } end
-    if G.ambience and (G.ambience.nearAnomaly or 99) < 18 then lines[#lines + 1] = { "ANOMALY NEARBY", { 0.6, 0.75, 1.0 } } end
-    local yy = y - #lines * 11
-    for _, l in ipairs(lines) do
-        lg.setColor(l[2][1], l[2][2], l[2][3], 0.85 + 0.15 * math.sin(love.timer.getTime() * 5))
-        lg.circle("fill", x + 4, yy + 6, 3, 6)
-        text(l[1], x + 11, yy, l[2], UI.fontS)
-        yy = yy + 11
-    end
-    local rows = { { "HEALTH", pl.health / 100, COL.warn }, { "STAMINA", pl.stamina / 100, { 0.8, 0.8, 0.75 } },
-                   { "WARMTH", pl.warmth / 100, COL.cold } }
-    if pl.radiation > 1 then rows[#rows + 1] = { "RAD DOSE", pl.radiation / 100, COL.rad } end
+    local x, y = 10, UI.VH - 22
+    local t = love.timer.getTime()
+    local rows = { { pl.health / 100, COL.warn }, { pl.warmth / 100, COL.cold } }
+    if pl.stamina < 99 then rows[#rows + 1] = { pl.stamina / 100, { 0.8, 0.8, 0.75 } } end
+    if pl.radiation > 1 then rows[#rows + 1] = { pl.radiation / 100, COL.rad } end
     for i, r in ipairs(rows) do
-        local ry = y + (i - 1) * 12
-        text(r[1], x, ry, COL.dim, UI.fontS)
-        bar(x + 52, ry + 2, 70, 5, r[2], r[3])
+        local ry = y + 4 - i * 5
+        lg.setColor(0, 0, 0, 0.45)
+        lg.rectangle("fill", x, ry, 60, 3)
+        lg.setColor(r[2][1], r[2][2], r[2][3], 0.8)
+        lg.rectangle("fill", x, ry, math.floor(60 * U.clamp(r[1], 0, 1)), 3)
     end
-    if pl.flashlight or pl.battery < 25 then
-        text(string.format("LIGHT %d%%", pl.battery), x, y + #rows * 12, pl.battery < 25 and COL.warn or COL.dim, UI.fontS)
+    -- a pulsing snowflake when the cold is winning, a dot for radiation
+    if S.coldLevel > 0.05 then
+        local a = 0.55 + 0.45 * math.sin(t * 4)
+        lg.setColor(COL.cold[1], COL.cold[2], COL.cold[3], a)
+        local cx, cy = x + 68, y - 3
+        for k = 0, 2 do
+            local ang = k * math.pi / 3
+            lg.line(cx - math.cos(ang) * 3, cy - math.sin(ang) * 3, cx + math.cos(ang) * 3, cy + math.sin(ang) * 3)
+        end
+    end
+    if S.radLevel > 0.05 then
+        lg.setColor(COL.rad[1], COL.rad[2], COL.rad[3], 0.6 + 0.4 * math.sin(t * 7))
+        lg.circle("fill", x + 76, y - 3, 2, 6)
     end
 end
 
@@ -258,11 +160,9 @@ local function weaponPanel()
     local Wp = G.weapons
     if not Wp.canUse() then return end
     local def = Wp.DEFS[Wp.current]
-    local x, y = UI.VW - 130, UI.VH - 36
-    text(def.name, x, y, COL.dim, UI.fontS, "right", 120)
     local reserve = G.inventory.player:count(def.ammo)
-    local s = Wp.reloadT > 0 and "RELOADING" or string.format("%d / %d", Wp.mag[Wp.current], reserve)
-    text(s, x, y + 10, Wp.mag[Wp.current] == 0 and COL.warn or COL.text, UI.fontM, "right", 120)
+    local s = string.format("%d / %d", Wp.mag[Wp.current], reserve)
+    text(s, UI.VW - 110, UI.VH - 18, Wp.mag[Wp.current] == 0 and COL.warn or { 0.82, 0.82, 0.78, 0.8 }, UI.fontS, "right", 100)
 end
 
 local function prompt()
@@ -270,77 +170,41 @@ local function prompt()
     if not cur then return end
     local s = I.currentText
     if not s then return end
-    local key = "E"
-    local w = UI.font:getWidth(s) + 30
-    local x, y = UI.VW / 2 - w / 2, UI.VH / 2 + 26
-    panel(x, y, w, 16)
-    lg.setColor(0.85, 0.85, 0.8, 1)
-    lg.rectangle("line", x + 3.5, y + 3.5, 10, 9)
-    text(key, x + 3, y + 3, COL.text, UI.fontS, "center", 12)
-    text(s, x + 18, y + 2, COL.text)
+    local w = UI.fontS:getWidth(s) + 22
+    local x, y = math.floor(UI.VW / 2 - w / 2), UI.VH / 2 + 22
+    lg.setColor(0, 0, 0, 0.4)
+    lg.rectangle("fill", x, y, w, 12)
+    lg.setColor(0.85, 0.85, 0.8, 0.9)
+    lg.rectangle("line", x + 2.5, y + 2.5, 8, 7)
+    text("E", x + 2, y + 2, COL.text, UI.fontS, "center", 10)
+    text(s, x + 14, y + 2, COL.text, UI.fontS)
     if I.holding then
-        bar(x, y + 17, w, 3, I.progress, COL.amber)
-    end
-end
-
-local function objectivesPanel(force)
-    local M = G.missions
-    local a = force and 1 or U.clamp(M.flash / 1.5, 0, 1)
-    if a <= 0 then return end
-    local x, w = UI.VW - 185, 175
-    local opts = {}
-    for _, o in ipairs(M.optional) do if o.shown then opts[#opts + 1] = o end end
-    local h = 38 + #opts * 11 + 6
-    local y = 8
-    panel(x, y, w, h, a)
-    local cur = M.current()
-    text("MAIN OBJECTIVE", x + 6, y + 4, { 0.9, 0.9, 0.85, a }, UI.fontS)
-    text(cur and cur.text or "-", x + 6, y + 14, { COL.amber[1], COL.amber[2], COL.amber[3], a }, UI.fontS)
-    text("OPTIONAL", x + 6, y + 28, { 0.9, 0.9, 0.85, a }, UI.fontS)
-    for i, o in ipairs(opts) do
-        local oy = y + 38 + (i - 1) * 11
-        lg.setColor(1, 1, 1, 0.8 * a)
-        lg.rectangle("line", x + 7.5, oy + 2.5, 6, 6)
-        if o.done then
-            lg.setColor(COL.good[1], COL.good[2], COL.good[3], a)
-            lg.line(x + 8, oy + 5, x + 10, oy + 8, x + 14, oy + 1)
-        end
-        text(M.optText(o), x + 18, oy, o.done and { 0.55, 0.6, 0.55, a } or { 0.85, 0.85, 0.8, a }, UI.fontS)
+        bar(x, y + 13, w, 2, I.progress, COL.amber)
     end
 end
 
 local function messages()
-    local y = UI.VH - 110
+    -- above the gauge panel while seated in the tank
+    local y = (G.player.mode == "seat") and UI.VH - 88 or UI.VH - 40
     for i = #UI.notes, 1, -1 do
         local n = UI.notes[i]
-        local a = U.clamp(n.t, 0, 1)
-        text(n.text, 0, y, { 0.9, 0.88, 0.8, a }, UI.fontS, "center", UI.VW)
-        y = y - 10
+        local a = U.clamp(n.t, 0, 1) * 0.85
+        text(n.text, 10, y, { 0.88, 0.86, 0.8, a }, UI.fontS)
+        y = y - 9
     end
     if UI.warn then
         local a = U.clamp(UI.warn.t, 0, 1) * (0.7 + 0.3 * math.sin(love.timer.getTime() * 10))
-        text(UI.warn.text, 0, 60, { COL.warn[1], COL.warn[2], COL.warn[3], a }, UI.fontL, "center", UI.VW)
+        text(UI.warn.text, 0, 70, { COL.warn[1], COL.warn[2], COL.warn[3], a }, UI.fontM, "center", UI.VW)
     end
     if UI.area then
         local t = UI.area.t
-        local a = math.min(1, t, (5 - t) * 2)
-        text(UI.area.text, 0, 120, { 0.92, 0.9, 0.85, a }, UI.fontL, "center", UI.VW)
-        lg.setColor(0.9, 0.9, 0.85, a * 0.6)
-        lg.rectangle("fill", UI.VW / 2 - 80, 148, 160, 1)
+        local a = math.min(1, t, (5 - t) * 2) * 0.75
+        text(UI.area.text, 0, UI.VH - 70, { 0.92, 0.9, 0.85, a }, UI.fontM, "center", UI.VW)
     end
     if UI.speech then
         local a = math.min(1, UI.speech.t)
         local s = UI.speech.who .. ": " .. UI.speech.text
-        local w = math.min(420, UI.fontS:getWidth(s) + 16)
-        lg.setColor(0, 0, 0, 0.45 * a)
-        lg.rectangle("fill", UI.VW / 2 - w / 2, UI.VH - 62, w, 22)
-        text(s, UI.VW / 2 - w / 2 + 8, UI.VH - 58, { 0.92, 0.9, 0.82, a }, UI.fontS, "center", w - 16)
-    end
-    if UI.objMsg then
-        local t = UI.objMsg.t
-        local a = math.min(1, t, (5 - t) * 2)
-        text(UI.objMsg.head, 0, 160, { COL.amber[1], COL.amber[2], COL.amber[3], a }, UI.fontS, "center", UI.VW)
-        text(UI.objMsg.text, 0, 170, { 0.9, 0.9, 0.85, a }, UI.fontM, "center", UI.VW)
+        text(s, UI.VW / 2 - 200, UI.VH - 56, { 0.92, 0.9, 0.82, a }, UI.fontS, "center", 400)
     end
 end
 
@@ -380,7 +244,6 @@ local function driverUI()
     tankSilhouette(x + 98, y + 14, 1)
     local eng = T.engineOn and "ENGINE RUNNING" or (T.engineStarting > 0 and "STARTING..." or "ENGINE OFF")
     text(eng, x + 6, y - 11, T.engineOn and COL.good or COL.amber, UI.fontS)
-    text("[W/S] THROTTLE  [A/D] STEER  [SPACE] BRAKE  [F] ENGINE  [L] LIGHTS  [V] CAMERA  [E] LEAVE SEAT", 0, UI.VH - 9, COL.dim, UI.fontS, "center", UI.VW)
 end
 
 local function gunnerUI(optic)
@@ -402,9 +265,6 @@ local function gunnerUI(optic)
     text("NEXT: " .. T.ammoSelect, x + 6, y + 46, COL.dim, UI.fontS)
     if not optic then
         tankSilhouette(x - 60, y + 20, 1)
-        text("[MOUSE/WASD] TRAVERSE  [LMB] FIRE  [RMB] OPTIC  [R] LOAD  [T] AMMO  [E] LEAVE", 0, UI.VH - 9, COL.dim, UI.fontS, "center", UI.VW)
-    else
-        text("[WHEEL] ZOOM  [RMB] EXIT OPTIC", 0, UI.VH - 9, COL.dim, UI.fontS, "center", UI.VW)
     end
 end
 
@@ -484,7 +344,6 @@ local function mgUI()
     text("HEAT", x + 6, y + 26, COL.dim, UI.fontS)
     bar(x + 50, y + 28, 52, 5, T.mgHeat / 100, T.mgJam and COL.warn or COL.amber)
     if T.mgJam then text("OVERHEATED", x + 6, y + 35, COL.warn, UI.fontS) end
-    text("[LMB] FIRE  [R] RELOAD BELT  [E] LEAVE", 0, UI.VH - 9, COL.dim, UI.fontS, "center", UI.VW)
 end
 
 local function radioPanel()
@@ -506,7 +365,6 @@ function UI.drawHUD()
     lg.setColor(1, 1, 1, 1)
     if pl.mode == "dead" then return end
     local st = pl.mode == "seat" and pl.station
-    if not (st and (st.name == "mg" or (st.name == "gunner" and G.stations.gunner.optic))) then compass(UI.VW / 2, 6) end
     if st and st.name == "driver" then driverUI()
     elseif st and st.name == "gunner" then
         if G.stations.gunner.optic then opticReticle() gunnerUI(true) else gunnerUI(false) end
@@ -514,18 +372,12 @@ function UI.drawHUD()
     else
         statusPanel()
         weaponPanel()
-        -- dynamic crosshair (fades out while aiming down the sights) and hit marker
+        -- a small dot of a crosshair (gone while aiming down the sights) and a hit marker
         local Wp = G.weapons
         local cx, cy = UI.VW / 2, UI.VH / 2
         local a = (1 - Wp.aimT) * (1 - Wp.holster)
-        if a > 0.05 then
-            local def = Wp.DEFS[Wp.current]
-            local gap = 3 + def.hipSpread * 120 * (1 + (pl.bobAmt or 0) * 1.5) + Wp.burst * 1.5
-            lg.setColor(1, 1, 1, 0.65 * a)
-            lg.rectangle("fill", cx - gap - 4, cy - 0.5, 4, 1)
-            lg.rectangle("fill", cx + gap, cy - 0.5, 4, 1)
-            lg.rectangle("fill", cx - 0.5, cy + gap, 1, 4)
-            lg.rectangle("fill", cx - 0.5, cy - gap - 4, 1, 4)
+        if a > 0.05 and Wp.canUse() then
+            lg.setColor(1, 1, 1, 0.5 * a)
             lg.rectangle("fill", cx - 0.5, cy - 0.5, 1, 1)
         end
         if Wp.hitT > 0 then
@@ -534,17 +386,13 @@ function UI.drawHUD()
             lg.line(cx - 6, cy + 6, cx - 3, cy + 3) lg.line(cx + 6, cy + 6, cx + 3, cy + 3)
         end
         prompt()
-        if pl.mode == "ladder" then
-            text("[W/S] CLIMB", 0, UI.VH - 9, COL.dim, UI.fontS, "center", UI.VW)
-        end
     end
-    if pl.frameName == "tank" and G.radar and not G.tank.destroyed then
-        local optic = st and ((st.name == "gunner" and G.stations.gunner.optic) or st.name == "mg")
-        if optic then G.radar.drawHUD(UI, 12, UI.VH - 110, 70)
-        elseif st and st.name == "driver" then G.radar.drawHUD(UI, 172, UI.VH - 84, 64)
-        elseif not st then G.radar.drawHUD(UI, UI.VW - 82, UI.VH - 100, 70) end
+    if st and G.radar and not G.tank.destroyed then
+        local optic = (st.name == "gunner" and G.stations.gunner.optic) or st.name == "mg"
+        -- the driver turns his head to the radar screen and the compass (tank_driver.lua); only the
+        -- gunner, glued to the sight, gets them on the HUD
+        if optic then G.radar.drawHUD(UI, 12, UI.VH - 110, 70) end
     end
-    objectivesPanel(love.keyboard.isDown("j"))
     radioPanel()
     messages()
 end
@@ -568,40 +416,67 @@ function UI.drawInventory()
     local inv = G.inventory.player
     lg.setColor(0, 0, 0, 0.55)
     lg.rectangle("fill", 0, 0, UI.VW, UI.VH)
-    local x, y, w, h = 120, 40, 400, 270
+    local x, y, w, h = 40, 20, 560, 318
     panel(x, y, w, h)
-    text("INVENTORY", x + 10, y + 8, COL.amber, UI.fontM)
+    text("PACK", x + 10, y + 8, COL.amber, UI.fontM)
     local mx, my = UI.mouse()
     local list = inv:list()
     local hoverId
+    local ROWS = 19
     for i, id in ipairs(list) do
-        local ry = y + 30 + (i - 1) * 13
-        local hover = mx > x + 10 and mx < x + 210 and my > ry and my < ry + 12
-        itemRow(id, inv:count(id), x + 10, ry, 200, hover)
+        local col = math.floor((i - 1) / ROWS)
+        local rx, ry = x + 10 + col * 178, y + 28 + ((i - 1) % ROWS) * 13
+        local hover = mx > rx and mx < rx + 170 and my > ry and my < ry + 12
+        itemRow(id, inv:count(id), rx, ry, 170, hover)
         if hover then hoverId = id end
     end
-    if #list == 0 then text("(EMPTY)", x + 10, y + 30, COL.dim, UI.fontS) end
+    if #list == 0 then text("(EMPTY)", x + 10, y + 28, COL.dim, UI.fontS) end
+    -- right column: what you wear, then details of the hovered item
+    local cx = x + 372
+    text("WEARING", cx, y + 10, COL.amber, UI.font)
+    local Inv = G.inventory
+    local hoverSlot
+    for i, slot in ipairs(Inv.SLOTS) do
+        local ry = y + 26 + (i - 1) * 13
+        local id = Inv.worn[slot]
+        local hover = mx > cx and mx < cx + 178 and my > ry and my < ry + 12
+        if hover and id then
+            lg.setColor(0.9, 0.7, 0.3, 0.2)
+            lg.rectangle("fill", cx, ry, 178, 12)
+            hoverSlot = slot
+        end
+        text(Inv.SLOT_NAMES[slot], cx, ry + 1, COL.dim, UI.fontS)
+        text(id and Inv.ITEMS[id].name or "-", cx + 40, ry + 1, id and (hover and COL.amber or COL.text) or COL.dim, UI.fontS)
+        if id then text("+" .. Inv.ITEMS[id].warmth, cx, ry + 1, COL.cold, UI.fontS, "right", 176) end
+    end
+    text(string.format("INSULATION %d", Inv.insulation()), cx, y + 94, COL.cold, UI.fontS)
     local sel = hoverId or UI.invSel
     if sel and Inv.ITEMS[sel] then
         local def = Inv.ITEMS[sel]
-        text(def.name, x + 225, y + 30, COL.amber, UI.font)
-        text(def.desc, x + 225, y + 44, COL.text, UI.fontS, "left", 165)
-        text(string.format("CARRYING %d / %d", inv:count(sel), def.carry), x + 225, y + 80, COL.dim, UI.fontS)
-        if def.use then text("CLICK TO USE", x + 225, y + 92, COL.good, UI.fontS) end
+        text(def.name, cx, y + 116, COL.amber, UI.font)
+        text(def.desc, cx, y + 130, COL.text, UI.fontS, "left", 176)
+        if def.wear then text(string.format("%s  WARMTH +%d", Inv.SLOT_NAMES[def.wear], def.warmth), cx, y + 168, COL.cold, UI.fontS) end
+        text(string.format("CARRYING %d / %d", inv:count(sel), def.carry), cx, y + 180, COL.dim, UI.fontS)
+        if def.use then text(def.wear and "CLICK TO WEAR" or "CLICK TO USE", cx, y + 192, COL.good, UI.fontS) end
     end
-    if hoverId and UI.clicked then
-        UI.clicked = false
-        UI.invSel = hoverId
-        if Inv.ITEMS[hoverId].use then Inv.use(hoverId) end
+    if UI.clicked then
+        if hoverId then
+            UI.clicked = false
+            UI.invSel = hoverId
+            if Inv.ITEMS[hoverId].use then Inv.use(hoverId) end
+        elseif hoverSlot then
+            UI.clicked = false
+            Inv.takeOff(hoverSlot)
+        end
     end
     local pl = G.player
-    local sy = y + h - 64
+    local sy = y + h - 40
     text(string.format("HEALTH %d   WARMTH %d   RADIATION %d   LIGHT %d%%", pl.health, pl.warmth, pl.radiation, pl.battery), x + 10, sy, COL.dim, UI.fontS)
     local Wp = G.weapons
     local guns = {}
     for i, id in ipairs(Wp.ORDER) do guns[i] = string.format("[%d] %s (%d)", i, Wp.DEFS[id].name, Wp.mag[id]) end
     text(table.concat(guns, "  "), x + 10, sy + 12, COL.dim, UI.fontS)
-    text("[TAB] CLOSE   [M] MAP   [J] OBJECTIVES", x + 10, y + h - 14, COL.dim, UI.fontS)
+    text("[TAB] CLOSE   [M] MAP   CLICK A WORN ITEM TO TAKE IT OFF", x + 10, y + h - 14, COL.dim, UI.fontS)
 end
 
 local STORE_STEP = { mg_ammo = 50, rifle_ammo = 5, pistol_ammo = 8, shotgun_ammo = 6 }
@@ -626,9 +501,10 @@ function UI.drawStorage()
     local function column(title, inv, other, colX, toTank)
         text(title, colX, y + 36, COL.text, UI.font)
         local list = inv:list()
+        local step = math.min(13, (h - 92) / math.max(1, #list))
         for i, id in ipairs(list) do
-            local ry = y + 52 + (i - 1) * 13
-            local hover = mx > colX and mx < colX + 230 and my > ry and my < ry + 12
+            local ry = y + 52 + (i - 1) * step
+            local hover = mx > colX and mx < colX + 230 and my > ry and my < ry + math.min(12, step)
             itemRow(id, inv:count(id), colX, ry, 230, hover)
             if hover and UI.clicked then
                 UI.clicked = false

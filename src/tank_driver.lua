@@ -62,8 +62,9 @@ function D.mousemoved(dx, dy, sens)
         D.orbitPitch = U.clamp(D.orbitPitch + dy * sens, -0.15, 1.1)
         return
     end
-    D.lookYaw = U.clamp(D.lookYaw + dx * sens, -0.7, 0.7)
-    D.lookPitch = U.clamp(D.lookPitch - dy * sens, -0.35, 0.3)
+    -- free head: turn round in the seat to read the compass under the slit or the radar behind you
+    D.lookYaw = U.clamp(D.lookYaw + dx * sens, -2.5, 2.5)
+    D.lookPitch = U.clamp(D.lookPitch - dy * sens, -1.15, 0.45)
 end
 
 -- chase camera: orbits the hull, eases in behind it, never dips below the ground
@@ -85,7 +86,7 @@ local function chaseCamera(dt)
     local tx, ty, tz = T.x, T.y + 2.4, T.z
     local dx, dz = -math.cos(yaw) * math.cos(pitch), -math.sin(yaw) * math.cos(pitch)
     local px, py, pz = tx + dx * dist, ty + math.sin(pitch) * dist, tz + dz * dist
-    local gy = G.world.height(px, pz) + 0.8
+    local gy = G.world.groundHeight(px, pz) + 0.8
     if py < gy then py = gy end
     if not D.camX then
         D.camX, D.camY, D.camZ = px, py, pz
@@ -113,7 +114,9 @@ function D.camera(cam)
     local f = T.frame
     -- eye behind the slit, slight engine vibration
     local vib = T.engineOn and (math.sin(love.timer.getTime() * 60) * 0.002 * (T.rpm / 2000)) or 0
-    local ex, ey, ez = 2.74 + vib, 2.0 + vib, -0.75
+    -- the head comes back from the slit when it turns away from it
+    local away = U.clamp(math.abs(D.lookYaw) / 1.2, 0, 1)
+    local ex, ey, ez = 2.74 - away * 0.28 + vib, 2.0 - away * 0.06 + vib, -0.75 + U.clamp(D.lookYaw, -1, 1) * -0.05
     local cy, sy = math.cos(D.lookYaw), math.sin(D.lookYaw)
     local cp, sp = math.cos(D.lookPitch), math.sin(D.lookPitch)
     local fx, fy, fz = cy * cp, sp, sy * cp

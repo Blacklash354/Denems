@@ -30,11 +30,6 @@ end
 
 local function contacts()
     local list = {}
-    for _, c in ipairs(G.creatures.list) do
-        if c.state ~= "dead" and c.state ~= "buried" then
-            list[#list + 1] = { x = c.x, z = c.z, kind = c.kind == "mutant" and "big" or "creature", hostile = true, id = c }
-        end
-    end
     for _, h in ipairs(G.humans.list) do
         if h.state ~= "dead" then list[#list + 1] = { x = h.x, z = h.z, kind = "human", hostile = h.hostile, id = h } end
     end

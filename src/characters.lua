@@ -1,6 +1,8 @@
 -- People from assets/characters_psx.glb. The file holds static one-piece figures in an A-pose;
 -- each is cut into rigid parts (torso, head, arms, thighs, shins) around the joints of the
--- procedural rig in humans.lua, so the existing walk / sit / aim / death poses drive them.
+-- rig in humans.lua / rig.lua, so the same walk / sit / aim / death poses drive them.
+-- Only the figures that fit a frozen, post-war land are used: masked raiders, NBC-suited
+-- chemical troops and civilians in jackets.
 local Gltf = require("src.engine.gltf")
 local MB = require("src.engine.meshbuilder")
 
@@ -11,9 +13,9 @@ Ch.HEIGHT = 1.78
 
 -- who wears what
 Ch.LOOKS = {
-    loner = { "Character_01", "Character_03", "Character_05", "Character_08", "Character_11", "Character_14", "Character_16", "Character_29" },
-    bandit = { "Character_Killer", "Character_Killer_01", "Character_Killer_02", "Character_Killer_03", "Character_Killer_04",
-               "Character_Killer_05", "Character_Killer_06", "Character_Killer_07" },
+    loner = { "Character_15", "Character_16", "Character_31" },
+    bandit = { "Character_21_Police", "Character_22_Police", "Character_Killer_03" },
+    military = { "Character_28_HM" },
 }
 
 -- rig joints in metres (x forward, y up, z right), matching the offsets used in humans.lua
@@ -52,6 +54,7 @@ function Ch.build(name)
     local builders = {}
     for part in pairs(PIVOT) do builders[part] = MB.new(700) end
     local t = {}
+    local sums = { armL = { 0, 0, 0, 0 }, armR = { 0, 0, 0, 0 } }
     for _, pr in ipairs(prims) do
         local v = pr.verts
         for k = 0, #v - 36, 36 do
@@ -69,6 +72,8 @@ function Ch.build(name)
             for j = k, k + 24, 12 do
                 local x, y, z = P(j)
                 t[1], t[2], t[3] = x - piv[1], y - piv[2], z - piv[3]
+                local sm = sums[part]
+                if sm then sm[1], sm[2], sm[3], sm[4] = sm[1] + t[1], sm[2] + t[2], sm[3] + t[3], sm[4] + 1 end
                 t[4], t[5] = v[j + 4], v[j + 5]
                 t[6], t[7], t[8] = -v[j + 8], v[j + 7], v[j + 6]
                 t[9], t[10], t[11], t[12] = v[j + 9], v[j + 10], v[j + 11], v[j + 12]
@@ -76,8 +81,16 @@ function Ch.build(name)
             end
         end
     end
-    local set = {}
+    local set = { pack = true }
     for part, mb in pairs(builders) do set[part] = mb:build() end
+    -- rest direction of each arm (shoulder -> hand) so a rigid arm can be swung towards a target
+    for _, part in ipairs({ "armL", "armR" }) do
+        local sm = sums[part]
+        local n = math.max(1, sm[4])
+        local x, y, z = sm[1] / n, sm[2] / n, sm[3] / n
+        local l = math.sqrt(x * x + y * y + z * z)
+        set[part .. "Dir"] = l > 1e-6 and { x / l, y / l, z / l } or { 0, -1, 0 }
+    end
     Ch.cache[name] = set
     return set
 end
@@ -96,5 +109,7 @@ function Ch.forNpc(faction, id)
     local list = Ch.LOOKS[faction] or Ch.LOOKS.loner
     return Ch.build(list[(id - 1) % #list + 1])
 end
+
+function Ch.get(name) return Ch.build(name) end
 
 return Ch

@@ -122,6 +122,18 @@ local function registerTank()
             use = function() if T.engineOn then T.stopEngine() else T.startEngine() end end })
     I.add({ space = "interior", frame = tankF, pos = { -1.45, 1.4, 0 }, radius = 0.9, prompt = "OPEN STORAGE",
             use = function() Game.openStorage() end })
+    -- the note Hans left taped to the instrument panel: where to go and how to find it
+    I.add({ space = "interior", frame = tankF, pos = { 2.76, 1.78, -1.12 }, radius = 0.2, prompt = "READ NOTE",
+            use = function()
+                Game.showMessage("NOTE - TAPED TO THE PANEL",
+                    "Kurt -\n\nThe others pulled out north, to Stutzpunkt Nord, the outpost by the lake past the big power station. " ..
+                    "I stayed with the tank as long as I could. The engine still turns over if you are gentle with the starter, and there is a " ..
+                    "little fuel; more in the garages up the road, if Ivan has left any.\n\n" ..
+                    "North is where the red needle points - the compass is on the wall right of the driver's slit, the red mark on its rim is our nose. " ..
+                    "Keep the needle up and keep going. It is a long way.\n\n" ..
+                    "The Russians hold the roads and the checkpoints. Some of them will let a man pass for a tin of meat. Do not count on it.\n\n- Hans")
+                G.missions.reveal("outpost")
+            end })
     I.add({ space = "interior", frame = tankF, pos = { 2.3, 1.85, 1.45 }, radius = 0.35,
             prompt = function()
                 if not T.radioOn then return "TURN RADIO ON" end
@@ -221,7 +233,6 @@ local function registerWorld()
     local W = G.world
     for _, c in ipairs(W.containers) do
         c.initialLoot = U.copy(c.loot)
-        c.village = U.dist2(c.x, c.z, W.village.x, W.village.z) < W.village.r
         I.add({ space = "exterior", pos = { c.x, c.y + 0.6, c.z }, radius = 0.6, range = 2.4, hold = 1.1,
                 enabled = function() return not c.searched end,
                 prompt = function() return "SEARCH " .. c.label end,
@@ -275,10 +286,17 @@ local function registerWorld()
                     G.missions.reveal("plant")
                 end })
     end
+    for _, n in ipairs(W.notes or {}) do
+        I.add({ space = "exterior", pos = { n.x, n.y, n.z }, radius = 0.5, range = 2.4, prompt = n.prompt,
+                use = function()
+                    Game.showMessage(n.title, n.body)
+                    if n.reveal then G.missions.reveal(n.reveal) end
+                end })
+    end
     if W.signalConsole then
         local t = W.signalConsole
         I.add({ space = "exterior", pos = { t.x, t.y, t.z }, radius = 0.8, range = 2.6, prompt = "ACTIVATE SIGNAL CONSOLE",
-                enabled = function() return G.missions.stage >= 8 end,
+                enabled = function() return G.missions.stage >= 6 end,
                 use = function() Game.ending() end })
     end
     for i in ipairs(G.humans.list) do
@@ -368,10 +386,6 @@ function Game.searchContainer(c)
     if #left == 0 then c.searched = true end
     if #got > 0 then G.ui.notify("FOUND: " .. table.concat(got, ", ")) else G.ui.notify("NOTHING YOU CAN CARRY") end
     if #left > 0 then G.ui.notify("NO ROOM - SOME ITEMS LEFT BEHIND") end
-    if c.village and not c.countedVillage then
-        c.countedVillage = true
-        G.missions.event("searched", { village = true })
-    end
     G.audio.play("pickup", {})
 end
 
@@ -427,7 +441,11 @@ end
 
 function Game.talk(h)
     local H = G.humans
-    local lines = (h.key and H.LINES[h.key]) or { "Good hunting, stalker. Stay warm.", "The Zone gives, the Zone takes." }
+    local lines = (h.key and H.LINES[h.key])
+    if not lines and h.faction == "german" then
+        lines = { "Kurt! Welcome home. The Leutnant is by the fire.", "We thought the Ivans had you. Get something hot inside you." }
+    end
+    lines = lines or { "Stay warm, friend. The cold takes the careless first.", "Nobody is coming for us. We keep the fire going anyway." }
     h.talkIdx = ((h.talkIdx or 0) % #lines) + 1
     local body = lines[h.talkIdx]
     if not h.talked and h.key and H.GIFTS[h.key] then
@@ -486,8 +504,19 @@ function Game.drawTrade()
     UI.text("[E/ESC] LEAVE", x + 10, y + h - 14, UI.COL.dim, UI.fontS)
 end
 
+-- the way home: reaching the outpost in the north
+function Game.homecoming()
+    if Game.endingKind == "home" then return end
+    Game.endingKind = "home"
+    Game.state = "ending"
+    Game.endT = 0
+    love.mouse.setRelativeMode(false)
+    G.audio.play("sting", {})
+end
+
 function Game.ending()
     G.missions.event("signal_found")
+    Game.endingKind = "signal"
     Game.state = "ending"
     Game.endT = 0
     love.mouse.setRelativeMode(false)
@@ -528,6 +557,7 @@ function Game.init(game)
 end
 
 function Game.newGame()
+    Game.endingKind = nil
     local W = G.world
     G.tank.reset()
     G.player.reset()
@@ -536,22 +566,24 @@ function Game.newGame()
     G.missions.reset()
     G.environment.time = 15.5
     G.weather.load({ intensity = 0.3, target = 0.3, phaseT = 120 })
-    G.creatures.load(nil)
     G.enemies.reset()
     G.humans.reset()
+    G.snow.reset()
+    G.destruction.reset()
+    G.map.reset()
     G.effects.clear()
     for _, c in ipairs(W.containers) do c.loot = U.copy(c.initialLoot) c.searched = false c.dirty = false c.countedVillage = false end
     for _, p in ipairs(W.pickups) do p.taken = false p.count = p.initialCount end
     for _, d in ipairs(W.doors) do d.open = false d.unlocked = false d.angle = 0 d.box.enabled = true end
     Game.playTime = 0
     Game.start()
-    G.ui.objective("MAIN OBJECTIVE", G.missions.current().text)
-    Game.helpT = 18
+    Game.helpT = nil
 end
 
 function Game.loadGame()
     local data = G.save.read()
     if not data then return false end
+    Game.endingKind = data.missions and data.missions.finishedHome and "home" or nil
     G.effects.clear()
     G.save.apply(data)
     Game.start()
@@ -651,9 +683,9 @@ function Game.update(dt)
         G.weather.update(dt)
         G.environment.update(dt)
         G.tank.update(dt)
+        G.snow.update(dt)
         Pl.update(dt)
         G.weapons.update(dt)
-        G.creatures.update(dt)
         G.enemies.update(dt)
         G.humans.update(dt)
         G.radar.update(dt)
@@ -664,6 +696,8 @@ function Game.update(dt)
         updateEmitters(dt)
         updateDoors(dt)
         G.effects.update(dt)
+        G.destruction.update(dt)
+        G.map.update(dt)
     end
     G.camera.update(dt)
     G.ui.update(dt)
@@ -700,7 +734,7 @@ function Game.update(dt)
     if Pl.mode == "seat" and Pl.station and Pl.station.name == "gunner" and G.stations.gunner.optic then
         fx.brightness = 1.15
     end
-    Game.musicDuck = (G.creatures.nearestThreat(Pl.x, Pl.z, 40) and 0.3 or 1)
+    Game.musicDuck = (G.humans.nearestThreat(Pl.x, Pl.z, 60) and 0.3 or 1)
 end
 
 ---------------------------------------------------------------------------
@@ -716,6 +750,7 @@ function Game.drawWorld()
     R.beginFrame()
     W.draw(under)
     G.effects.drawDecals()
+    if not under then G.snow.drawDrifts() G.destruction.draw() end
     -- doors
     for i, d in ipairs(W.doors) do
         if not (d.obj and not d.obj.alive) and R.visible(d.x, d.y + 1, d.z, 3) then
@@ -743,12 +778,6 @@ function Game.drawWorld()
             if U.dist2(cam.x, cam.z, e.x, e.z) < 150 then shadows[#shadows + 1] = { x = e.x, z = e.z, yaw = e.yaw, l = 4.3, w = 2.5, a = 0.75 } end
         end
     end
-    for _, c in ipairs(G.creatures.list) do
-        if c.state ~= "buried" and c.state ~= "dead" and U.dist2(cam.x, cam.z, c.x, c.z) < 80 then
-            local r = c.def.radius * 1.6
-            shadows[#shadows + 1] = { x = c.x, z = c.z, y = c.underground and c.y or nil, yaw = c.yaw, l = r * 1.4, w = r, a = 0.6 }
-        end
-    end
     for _, h in ipairs(G.humans.list) do
         if U.dist2(cam.x, cam.z, h.x, h.z) < 70 then
             local dead = h.state == "dead"
@@ -758,7 +787,6 @@ function Game.drawWorld()
     G.effects.drawShadows(shadows)
     G.tank.draw(cam)
     G.enemies.draw()
-    G.creatures.draw()
     G.humans.draw()
     if not G.environment.underground then G.ambience.draw() end
     G.effects.drawCasings()
@@ -784,6 +812,7 @@ function Game.draw()
     elseif Game.state == "map" then G.map.draw(UI)
     elseif Game.state == "message" then Game.drawMessage()
     elseif Game.state == "trade" then Game.drawTrade()
+    elseif Game.state == "dialog" then G.dialog.draw()
     elseif Game.state == "pause" then G.menu.drawPause()
     elseif Game.state == "settings" then G.menu.drawSettings(function() Game.state = "pause" end)
     elseif Game.state == "dead" then Game.drawDead()
@@ -796,8 +825,8 @@ function Game.drawHelp(a)
     local UI = G.ui
     local lines = {
         "WASD MOVE   SHIFT SPRINT   C CROUCH   SPACE JUMP   E INTERACT / LEAVE SEAT",
-        "F FLASHLIGHT   LMB FIRE   RMB AIM   R RELOAD   1-4 OR WHEEL WEAPONS   TAB INVENTORY   M MAP",
-        "J OBJECTIVES   F5 QUICKSAVE   F9 QUICKLOAD   ESC PAUSE",
+        "F FLASHLIGHT   LMB FIRE   RMB AIM   R RELOAD   1-4 OR WHEEL WEAPONS   TAB INVENTORY AND CLOTHES   M MAP",
+        "F5 QUICKSAVE   F9 QUICKLOAD   ESC PAUSE",
     }
     for i, l in ipairs(lines) do UI.text(l, 0, 250 + i * 10, { 0.85, 0.85, 0.8, a * 0.9 }, UI.fontS, "center", UI.VW) end
 end
@@ -820,9 +849,7 @@ function Game.drawDead()
     local UI = G.ui
     local causes = { cold = "YOU FROZE TO DEATH", radiation = "RADIATION SICKNESS TOOK YOU", fall = "YOU FELL",
                      tank = "YOUR TANK WAS DESTROYED WITH YOU INSIDE", tank_lost = "WITHOUT THE TANK, THE WINTER TAKES YOU",
-                     hound = "TORN APART BY FROST HOUNDS", crawler = "THE CRAWLERS GOT YOU", burrower = "DRAGGED BENEATH THE SNOW",
-                     mutant = "CRUSHED BY THE MUTANT", zombie = "THE WALKERS DRAGGED YOU DOWN", spider = "THE SPIDERS FED WELL", explosion = "KILLED BY AN EXPLOSION", shot = "SHOT DEAD",
-                     anomaly = "THE ANOMALY TORE YOU APART" }
+                     explosion = "KILLED BY AN EXPLOSION", shot = "SHOT DEAD" }
     lg.setColor(0, 0, 0, 0.5)
     lg.rectangle("fill", 0, 0, UI.VW, UI.VH)
     UI.text("YOU ARE DEAD", 0, 110, UI.COL.warn, UI.fontXL, "center", UI.VW)
@@ -839,8 +866,25 @@ function Game.drawEnding()
     local a = math.min(1, Game.endT / 3)
     lg.setColor(0, 0, 0, 0.85 * a)
     lg.rectangle("fill", 0, 0, UI.VW, UI.VH)
+    local title, body
+    if Game.endingKind == "home" then
+        title = "STUTZPUNKT NORD"
+        body = "A sentry rises out of the snow behind the sandbags, rifle up - and then lowers it. 'Kurt? Kurt Weber?'\n\n" ..
+            "They come out of the tents one by one, thin and grey and grinning, to look at the tank as if it were a horse that had found " ..
+            "its own way home. Somebody puts a tin cup of something hot into your hands. The war is over and nobody won, " ..
+            "but tonight there is a fire, and you are among your own.\n\n" ..
+            "Thank you for playing STEEL HEARTH."
+        UI.text(title, 0, 50, { 0.95, 0.72, 0.3, a }, UI.fontL, "center", UI.VW)
+        UI.text(body, 120, 90, { 0.88, 0.88, 0.84, a }, UI.fontS, "left", 400)
+        UI.text(string.format("TIME PLAYED %s", U.formatTime(Game.playTime)), 0, 230, { 0.6, 0.6, 0.6, a }, UI.fontS, "center", UI.VW)
+        if Game.endT > 2 then
+            if UI.button("CONTINUE EXPLORING", 220, 250, 200, 20) then Game.state = "play" love.mouse.setRelativeMode(true) end
+            if UI.button("MAIN MENU", 220, 276, 200, 20) then G.menu.open() end
+        end
+        return
+    end
     UI.text("THE SIGNAL", 0, 50, { 0.95, 0.72, 0.3, a }, UI.fontL, "center", UI.VW)
-    local body = "The console hums. Behind the reinforced glass of the reactor hall, a dozen frost-bitten faces turn toward you. " ..
+    body = "The console hums. Behind the reinforced glass of the reactor hall, a dozen frost-bitten faces turn toward you. " ..
         "They kept the transmitter alive for forty days, hoping someone - anyone - would answer.\n\n" ..
         "Somebody did. Out there the tank waits in the snow, engine ticking as it cools. There is fuel enough for one more journey south, " ..
         "and room inside the steel for everyone who can still walk.\n\n" ..
@@ -907,6 +951,8 @@ function Game.keypressed(key)
         if key == "m" or key == "escape" or key == "tab" then Game.state = "play" love.mouse.setRelativeMode(true) end
     elseif Game.state == "trade" then
         if key == "e" or key == "escape" or key == "tab" then Game.state = "play" love.mouse.setRelativeMode(true) end
+    elseif Game.state == "dialog" then
+        G.dialog.keypressed(key)
     elseif Game.state == "message" then
         if key == "escape" or key == "e" or key == "return" then Game.state = "play" love.mouse.setRelativeMode(true) end
     elseif Game.state == "pause" then

@@ -8,7 +8,6 @@ Source repositories: https://github.com/Spyridon-Pikoulas
 
 | Folder | Pack | Credit line |
 |---|---|---|
-| `assets/psx/creatures/` | PSX Creatures Free | PSX Creatures Free by heyheythere - https://heyheythere.itch.io/psx-creatures-free - CC BY 4.0 |
 | `assets/psx/vehicles/` | PSX Vehicles Free | PSX Vehicles Free by heyheythere - https://heyheythere.itch.io/psx-vehicles-free - CC BY 4.0 |
 | `assets/psx/gas_station_kit/` | PSX Gas Station Kit Free | see `LICENSE.txt` in the folder |
 | `assets/psx/forest/` | PSX Forest Free | see `LICENSE.txt` in the folder |
@@ -17,6 +16,23 @@ Source repositories: https://github.com/Spyridon-Pikoulas
 
 Changes made here: the `.glb` files are renamed (`*_model.glb` -> `*.glb`); models are tinted and
 snow is added at load time; the textures are renamed to the game's material names.
+
+## People — CC0 1.0, by Quaternius (https://quaternius.com)
+
+`assets/people/*.glb` are made from **Ultimate Modular Men** and **Ultimate Modular Women** by Quaternius
+(CC0 1.0 Universal, `assets/people/LICENSE.txt`), taken from the copy in
+https://github.com/LuanDucate/Ducz.CharacterCreator (`public/models`, commit fcd215b). `tools/people_convert.py`
+mixes heads, bodies, legs and feet from the outfits (Swat, Worker, Adventurer, Farmer, Casual_Hoodie, Casual_2, Punk,
+female Adventurer and Worker), recolours them (olive drab, winter whites, bandit black, survivor browns), cuts the
+skinned meshes into rigid body parts by bone and drops the animations. `fp_arms.glb` is the Swat figure's arms with
+the fingers posed round a grip, for the first-person view.
+
+## Effects - CC0 1.0, by Kenney (https://kenney.nl)
+
+`assets/fx/smoke.png` and `assets/fx/fire.png` are atlases made by `tools/fx_atlas.py` from Kenney's **Smoke
+Particles** (White puff, Explosion, Flash; copy at https://github.com/ETdoFresh/kenney.nl, commit 45df48c) and
+**Particle Pack 1.1** (dirt, smoke, muzzle; copy at https://github.com/Calinou/kenney-particle-pack, commit ab70866),
+shrunk to 48 px sprites. Licences: `assets/fx/LICENSE-smoke-particles.txt`, `assets/fx/LICENSE-particle-pack.txt`.
 
 ## Shader references
 
@@ -38,7 +54,8 @@ snow is added at load time; the textures are renamed to the game's material name
 | `psx_ak-74.glb` | PSX AK-74 by Charckes (charlesmoch) | Sketchfab Standard (**may not be redistributed**, e.g. in a public repository) |
 | `PSXMiscGuns/` | PSX Misc Guns pack (M14-style rifle, Makarov, 1911, shotgun, flare gun) | no licence file in the folder - check the download page |
 
-How they are used: the character figures are cut into rigid parts for the NPC rig
-(`src/characters.lua`); the guns become the first-person rifle, AK and pistol (`src/weapons.lua`);
-the buildings, metro car, props and helicopter make up the microdistrict (`src/world_psx.lua`).
+How they are used: some character figures (masked raiders, NBC-suited troops, civilians in jackets) are cut into
+rigid parts for the NPC rig (`src/characters.lua`); the guns become the first-person rifle, AK and pistol
+(`src/weapons.lua`, the AK's magazine is cut out of the mesh for reloads); the buildings, metro car, props and
+helicopter fill the city of Zarechny and the airfield (`src/world_psx.lua`).
 All of these are optional: without the files the game falls back to its procedural models.

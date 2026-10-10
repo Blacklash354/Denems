@@ -13,16 +13,22 @@ function S.update(dt)
     local w = G.weather.intensity
     local night = 1 - G.environment.daylight
     local x, y, z = pl.feetWorld()
-    -- warmth: drains outside, recovers inside the tank (faster with the engine running)
+    -- warmth: drains outside (slower in good clothes), recovers inside the tank (faster with the engine running)
+    local ins = G.inventory.insulation and G.inventory.insulation() or 40
+    local protect = 1 - math.min(0.82, ins / 100) * 0.85
+    S.insulation = ins
     local rate
     if pl.frameName == "tank" then
         rate = 1.2 + (T.engineOn and 1.4 or 0) - T.hatchAnim * 0.6
         S.shelter = "TANK"
     elseif G.environment.underground or W.inShelter(x, y + 1, z) then
-        rate = -0.05
+        rate = -0.04 * protect
         S.shelter = "BUILDING"
     else
-        rate = -(0.08 + w * 0.22 + night * 0.08)
+        local exposure = 0.1 + w * 0.3 + night * 0.1
+        -- walking keeps you a little warmer than standing still in the wind
+        local moving = (pl.bobAmt or 0) > 0.3 and 0.25 or 0
+        rate = -exposure * protect * (1 - moving)
         S.shelter = nil
     end
     -- standing near fires warms

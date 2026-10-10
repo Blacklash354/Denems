@@ -60,7 +60,7 @@ function Mg.fireOne()
     G.effects.casing("tank", 2.55, 1.85, 0.68)
     if G.audio then G.audio.play("mg", { tank = true }) end
     if G.camera then G.camera.shake(0.12) end
-    if G.creatures then G.creatures.noise(mx, my, mz, 140, "gunshot") end
+    if G.humans then G.humans.noise(mx, my, mz, 140) end
     Mg.recoil = 1
 end
 

@@ -6,10 +6,10 @@ local R = {}
 local lg = love.graphics
 
 R.qualities = {
-    { name = "LOW", w = 480, h = 270, drawDist = 170 },
-    { name = "MEDIUM", w = 640, h = 360, drawDist = 220 },
-    { name = "HIGH", w = 960, h = 540, drawDist = 270 },
-    { name = "PSX 240P", w = 426, h = 240, drawDist = 200 },
+    { name = "LOW", w = 480, h = 270, drawDist = 200 },
+    { name = "MEDIUM", w = 640, h = 360, drawDist = 280 },
+    { name = "HIGH", w = 960, h = 540, drawDist = 360 },
+    { name = "PSX 240P", w = 426, h = 240, drawDist = 240 },
 }
 
 -- full-screen display filters applied in the post pass
@@ -52,6 +52,8 @@ function R.init(quality)
     R.spotDir = { 0, 0, 1, 0.9 }
     R.buildSky()
     R.setQuality(quality or 2)
+    local sup = lg.getSupported()
+    R.instancing = sup and sup.instancing and not os.getenv("STEEL_NO_INSTANCING")
 end
 
 function R.setQuality(q)
@@ -147,13 +149,13 @@ function R.beginFrame()
     send(sh, "interiorAmbient", e.interiorAmbient)
     send(sh, "fogColor", e.fogColor)
     -- retro wobble (vertex snapping + affine UVs) is optional; default is stable textures
+    R.affineAmt = R.wobble and 0.35 or 0
     if R.wobble then
         send(sh, "snapRes", { R.lowW * 0.5, R.lowH * 0.5 })
-        send(sh, "affine", 0.35)
     else
         send(sh, "snapRes", { 8192, 8192 })
-        send(sh, "affine", 0.0)
     end
+    sendCached(sh, "affine", R.affineAmt)
     send(sh, "flipY", -1)
     send(sh, "mist", { e.mist[1], e.mist[2], e.mist[3], R.time })
     send(sh, "spotPos", R.spot)
@@ -191,6 +193,7 @@ function R.defaults()
     local e = R.env
     sendCached(sh, "uInterior", 0)
     sendCached(sh, "uEmissive", 0)
+    sendCached(sh, "uInstanced", 0)
     send(sh, "uTint", { 1, 1, 1, 1 })
     send(sh, "uvOffset", { 0, 0 })
     send(sh, "fogRange", { e.fogStart, e.fogEnd })
@@ -199,10 +202,14 @@ function R.defaults()
     cur.tint, cur.uv, cur.fog, cur.amb = false, false, false, false
 end
 
--- params: interior(0/1), emissive, tint{r,g,b,a}, uvOffset{u,v}, fog {start,end,max}
+-- flat: no affine texture wobble for this draw (the ground)
+function R.setAffine(flat) sendCached(R.world, "affine", flat and 0 or (R.affineAmt or 0)) end
+
+-- params: interior(0/1), emissive, tint{r,g,b,a}, uvOffset{u,v}, fog {start,end,max}, flat
 function R.drawModel(model, matrix, params)
     if not model then return end
     local sh = R.world
+    R.setAffine(params and params.flat)
     send(sh, "model", "row", matrix or identity)
     if params then
         sendCached(sh, "uInterior", params.interior or 0)
@@ -242,6 +249,33 @@ function R.drawModel(model, matrix, params)
     end
     R.stats.draws = R.stats.draws + #parts
     R.stats.tris = R.stats.tris + model.tris
+end
+
+-- many copies of a small model (trees, rocks): per-instance position/yaw/scale from instMesh
+function R.drawInstanced(model, instMesh, count)
+    local sh = R.world
+    R.setAffine(false)
+    sendCached(sh, "uInstanced", 1)
+    sendCached(sh, "uInterior", 0)
+    sendCached(sh, "uEmissive", 0)
+    sendCached(sh, "alphaCut", 0.5)
+    if cur.tint then send(sh, "uTint", { 1, 1, 1, 1 }) cur.tint = false end
+    if cur.uv then send(sh, "uvOffset", { 0, 0 }) cur.uv = false end
+    if cur.fog then
+        send(sh, "fogRange", { R.env.fogStart, R.env.fogEnd })
+        sendCached(sh, "fogMax", 1)
+        cur.fog = false
+    end
+    local parts = model.parts
+    for i = 1, #parts do
+        local m = parts[i].mesh
+        m:attachAttribute("InstXf", instMesh, "perinstance")
+        m:attachAttribute("InstSc", instMesh, "perinstance")
+        lg.drawInstanced(m, count)
+    end
+    sendCached(sh, "uInstanced", 0)
+    R.stats.draws = R.stats.draws + #parts
+    R.stats.tris = R.stats.tris + model.tris * count
 end
 
 -- visibility test of a world-space sphere against the camera (distance + rough frustum)
